@@ -40,8 +40,37 @@ type TranscriptDiagnostic =
       kind: "not-found";
     };
 
+type YoutubeCaptionTrack = {
+  languageCode?: string;
+  baseUrl?: string;
+  url?: string;
+};
+
+type YoutubePlayerResponse = {
+  captions?: {
+    playerCaptionsTracklistRenderer?: {
+      captionTracks?: YoutubeCaptionTrack[];
+    };
+  };
+  playerCaptionsTracklistRenderer?: {
+    captionTracks?: YoutubeCaptionTrack[];
+  };
+  playabilityStatus?: { status?: string };
+};
+
+type PlayerClientConfig = {
+  name: string;
+  clientName: string;
+  clientVersion: string;
+};
+
 const YOUTUBE_FETCH_TIMEOUT_MS = 12000;
 const RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
+const PLAYER_CLIENTS: PlayerClientConfig[] = [
+  { name: "android", clientName: "ANDROID", clientVersion: "20.10.38" },
+  { name: "web", clientName: "WEB", clientVersion: "2.20250305.01.00" },
+  { name: "tvhtml5", clientName: "TVHTML5", clientVersion: "7.20250305.16.00" },
+];
 const YOUTUBE_FETCH_HEADERS = {
   Accept:
     "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7",
@@ -120,10 +149,7 @@ async function youtubeFetch({ url, method = "GET", body, headers = {}, signal }:
   });
 }
 
-async function diagnoseTranscriptFailure(
-  videoId: string,
-  lang: string,
-): Promise<TranscriptDiagnostic> {
+async function fetchWatchPage(videoId: string, lang: string) {
   const watchResponse = await youtubeFetch({
     url: `https://www.youtube.com/watch?v=${videoId}`,
     lang,
@@ -132,28 +158,37 @@ async function diagnoseTranscriptFailure(
   if (!watchResponse.ok) {
     if (watchResponse.status === 429) {
       return {
-        kind: "upstream",
-        code: "youtube_watch_rate_limited",
-        message: "YouTube rate-limited the hosted watch-page request.",
-        status: 429,
+        ok: false as const,
+        diagnostic: {
+          kind: "upstream" as const,
+          code: "youtube_watch_rate_limited",
+          message: "YouTube rate-limited the hosted watch-page request.",
+          status: 429,
+        },
       };
     }
 
     return {
-      kind: "upstream",
-      code: "youtube_watch_http_error",
-      message: `YouTube watch page returned HTTP ${watchResponse.status}.`,
-      status: 502,
+      ok: false as const,
+      diagnostic: {
+        kind: "upstream" as const,
+        code: "youtube_watch_http_error",
+        message: `YouTube watch page returned HTTP ${watchResponse.status}.`,
+        status: 502,
+      },
     };
   }
 
   const watchBody = await watchResponse.text();
   if (watchBody.includes('class="g-recaptcha"')) {
     return {
-      kind: "upstream",
-      code: "youtube_watch_recaptcha",
-      message: "YouTube challenged the hosted watch-page request.",
-      status: 429,
+      ok: false as const,
+      diagnostic: {
+        kind: "upstream" as const,
+        code: "youtube_watch_recaptcha",
+        message: "YouTube challenged the hosted watch-page request.",
+        status: 429,
+      },
     };
   }
 
@@ -162,23 +197,38 @@ async function diagnoseTranscriptFailure(
     watchBody.match(/INNERTUBE_API_KEY\\":\\"([^\\"]+)\\"/);
   if (!apiKeyMatch) {
     return {
-      kind: "upstream",
-      code: "youtube_watch_missing_api_key",
-      message: "YouTube watch page did not expose an Innertube API key.",
-      status: 502,
+      ok: false as const,
+      diagnostic: {
+        kind: "upstream" as const,
+        code: "youtube_watch_missing_api_key",
+        message: "YouTube watch page did not expose an Innertube API key.",
+        status: 502,
+      },
     };
   }
 
+  return {
+    ok: true as const,
+    apiKey: apiKeyMatch[1],
+  };
+}
+
+async function fetchPlayerResponse(
+  videoId: string,
+  lang: string,
+  apiKey: string,
+  client: PlayerClientConfig,
+) {
   const playerResponse = await youtubeFetch({
-    url: `https://www.youtube.com/youtubei/v1/player?key=${apiKeyMatch[1]}`,
+    url: `https://www.youtube.com/youtubei/v1/player?key=${apiKey}`,
     method: "POST",
     lang,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       context: {
         client: {
-          clientName: "ANDROID",
-          clientVersion: "20.10.38",
+          clientName: client.clientName,
+          clientVersion: client.clientVersion,
         },
       },
       videoId,
@@ -188,74 +238,130 @@ async function diagnoseTranscriptFailure(
   if (!playerResponse.ok) {
     if (playerResponse.status === 429) {
       return {
-        kind: "upstream",
-        code: "youtube_player_rate_limited",
-        message: "YouTube rate-limited the hosted player request.",
-        status: 429,
+        ok: false as const,
+        diagnostic: {
+          kind: "upstream" as const,
+          code: `youtube_player_rate_limited_${client.name}`,
+          message: `YouTube rate-limited the hosted player request for ${client.clientName}.`,
+          status: 429,
+        },
       };
     }
 
     return {
-      kind: "upstream",
-      code: "youtube_player_http_error",
-      message: `YouTube player endpoint returned HTTP ${playerResponse.status}.`,
-      status: 502,
+      ok: false as const,
+      diagnostic: {
+        kind: "upstream" as const,
+        code: `youtube_player_http_error_${client.name}`,
+        message: `YouTube player endpoint returned HTTP ${playerResponse.status} for ${client.clientName}.`,
+        status: 502,
+      },
     };
   }
 
-  const playerJson = (await playerResponse.json()) as {
-    captions?: {
-      playerCaptionsTracklistRenderer?: {
-        captionTracks?: Array<{ languageCode?: string; baseUrl?: string; url?: string }>;
-      };
-    };
-    playerCaptionsTracklistRenderer?: {
-      captionTracks?: Array<{ languageCode?: string; baseUrl?: string; url?: string }>;
-    };
-    playabilityStatus?: { status?: string };
+  return {
+    ok: true as const,
+    playerJson: (await playerResponse.json()) as YoutubePlayerResponse,
+  };
+}
+
+async function fetchCaptionTracksWithFallback(videoId: string, lang: string) {
+  const watchResult = await fetchWatchPage(videoId, lang);
+  if (!watchResult.ok) {
+    return watchResult;
+  }
+
+  let sawPlayableWithoutCaptions = false;
+  let lastDiagnostic: TranscriptDiagnostic = {
+    kind: "upstream",
+    code: "youtube_player_missing_captions",
+    message: "YouTube player response did not expose caption tracks.",
+    status: 502,
   };
 
-  const tracklist =
-    playerJson.captions?.playerCaptionsTracklistRenderer ??
-    playerJson.playerCaptionsTracklistRenderer;
-  const tracks = tracklist?.captionTracks;
-  const isPlayable = playerJson.playabilityStatus?.status === "OK";
+  for (const client of PLAYER_CLIENTS) {
+    const playerResult = await fetchPlayerResponse(videoId, lang, watchResult.apiKey, client);
+    if (!playerResult.ok) {
+      lastDiagnostic = playerResult.diagnostic;
+      continue;
+    }
 
-  if (!playerJson.captions || !tracklist) {
-    if (isPlayable) {
-      return { kind: "disabled" };
+    const tracklist =
+      playerResult.playerJson.captions?.playerCaptionsTracklistRenderer ??
+      playerResult.playerJson.playerCaptionsTracklistRenderer;
+    const tracks = tracklist?.captionTracks;
+    const isPlayable = playerResult.playerJson.playabilityStatus?.status === "OK";
+
+    if (!playerResult.playerJson.captions || !tracklist) {
+      if (isPlayable) {
+        sawPlayableWithoutCaptions = true;
+      }
+      lastDiagnostic = {
+        kind: "upstream",
+        code: `youtube_player_missing_captions_${client.name}`,
+        message: `YouTube player response did not expose caption tracks for ${client.clientName}.`,
+        status: 502,
+      };
+      continue;
+    }
+
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      sawPlayableWithoutCaptions = true;
+      lastDiagnostic = {
+        kind: "disabled",
+      };
+      continue;
     }
 
     return {
-      kind: "upstream",
-      code: "youtube_player_missing_captions",
-      message: "YouTube player response did not expose caption tracks.",
-      status: 502,
+      ok: true as const,
+      tracks,
     };
   }
 
-  if (!Array.isArray(tracks) || tracks.length === 0) {
-    return { kind: "disabled" };
-  }
-
-  const selectedTrack = tracks.find((track) => track.languageCode === lang);
-  if (!selectedTrack) {
+  if (sawPlayableWithoutCaptions) {
     return {
-      kind: "language",
-      available: tracks
-        .map((track) => track.languageCode)
-        .filter((value): value is string => Boolean(value)),
+      ok: false as const,
+      diagnostic: {
+        kind: "upstream" as const,
+        code: "youtube_player_missing_captions_all_clients",
+        message: "YouTube returned playable player responses without caption tracks for every tried client context.",
+        status: 502,
+      },
     };
+  }
+
+  return {
+    ok: false as const,
+    diagnostic: lastDiagnostic,
+  };
+}
+
+async function fetchTranscriptThroughPlayerFallback(videoId: string, lang: string) {
+  const trackResult = await fetchCaptionTracksWithFallback(videoId, lang);
+  if (!trackResult.ok) {
+    throw trackResult.diagnostic;
+  }
+
+  const selectedTrack = trackResult.tracks.find((track) => track.languageCode === lang);
+  if (!selectedTrack) {
+    const available = trackResult.tracks
+      .map((track) => track.languageCode)
+      .filter((value): value is string => Boolean(value));
+    throw {
+      kind: "language",
+      available,
+    } satisfies TranscriptDiagnostic;
   }
 
   const transcriptBaseUrl = selectedTrack.baseUrl ?? selectedTrack.url;
   if (!transcriptBaseUrl) {
-    return {
+    throw {
       kind: "upstream",
       code: "youtube_transcript_url_missing",
       message: "YouTube did not expose a transcript URL for the selected caption track.",
       status: 502,
-    };
+    } satisfies TranscriptDiagnostic;
   }
 
   const transcriptUrl = transcriptBaseUrl.replace(/&fmt=[^&]+/, "");
@@ -266,33 +372,67 @@ async function diagnoseTranscriptFailure(
 
   if (!transcriptResponse.ok) {
     if (transcriptResponse.status === 429) {
-      return {
+      throw {
         kind: "upstream",
         code: "youtube_transcript_rate_limited",
         message: "YouTube rate-limited the hosted transcript XML request.",
         status: 429,
-      };
+      } satisfies TranscriptDiagnostic;
     }
 
-    return {
+    throw {
       kind: "upstream",
       code: "youtube_transcript_http_error",
       message: `YouTube transcript XML returned HTTP ${transcriptResponse.status}.`,
       status: 502,
-    };
+    } satisfies TranscriptDiagnostic;
   }
 
   const transcriptBody = await transcriptResponse.text();
-  if ([...transcriptBody.matchAll(RE_XML_TRANSCRIPT)].length === 0) {
-    return {
+  const matches = [...transcriptBody.matchAll(RE_XML_TRANSCRIPT)];
+  if (matches.length === 0) {
+    throw {
       kind: "upstream",
       code: "youtube_transcript_empty_xml",
       message: "YouTube transcript XML was returned without readable segments.",
       status: 502,
-    };
+    } satisfies TranscriptDiagnostic;
   }
 
-  return { kind: "not-found" };
+  return matches.map(
+    (match): TranscriptSegment => ({
+      text: normalizeTranscriptText(match[3]),
+      duration: Number.parseFloat(match[2]),
+      offset: Number.parseFloat(match[1]),
+      lang,
+    }),
+  );
+}
+
+async function diagnoseTranscriptFailure(
+  videoId: string,
+  lang: string,
+): Promise<TranscriptDiagnostic> {
+  try {
+    await fetchTranscriptThroughPlayerFallback(videoId, lang);
+    return { kind: "not-found" };
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "kind" in error &&
+      typeof error.kind === "string"
+    ) {
+      return error as TranscriptDiagnostic;
+    }
+
+    return {
+      kind: "upstream",
+      code: "youtube_diagnostic_failed",
+      message: "Could not verify transcript availability.",
+      status: 502,
+    };
+  }
 }
 
 async function getTranscriptErrorResponse(
@@ -381,6 +521,18 @@ export async function GET(request: Request) {
     const payload: TranscriptRouteResponse = { segments };
     return Response.json(payload);
   } catch (error) {
+    if (error instanceof YoutubeTranscriptNotAvailableError) {
+      try {
+        const fallbackSegments = await fetchTranscriptThroughPlayerFallback(videoId, lang);
+        const payload: TranscriptRouteResponse = {
+          segments: normalizeTranscriptSegments(fallbackSegments),
+        };
+        return Response.json(payload);
+      } catch {
+        // Fall through to the structured diagnostic response below.
+      }
+    }
+
     return getTranscriptErrorResponse(error, videoId, lang);
   }
 }
