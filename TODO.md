@@ -132,6 +132,7 @@
   - log / metrics provider
 - [ ] Validate that the chosen host supports the app's networking needs, Python runtime, and persistent data story.
 - [ ] Define environment variables, deploy steps, rollback steps, and backup expectations.
+- [ ] Buy and attach a custom domain before paid public launch.
 
 ### Transcript strategy
 
@@ -151,4 +152,5 @@
 - [ ] Add an account settings surface for account metadata and app-data purge.
 - [ ] Move production-sensitive config fully into env-driven settings.
 - [ ] Add first-pass hosted observability: core study/export metrics, alertable failures, and one dashboard for maintenance.
+- [ ] Choose and attach the long-term product domain before charging users.
 - [ ] Validate the production Anki bridge approach from the browser side before going deeper on paid-plan work.

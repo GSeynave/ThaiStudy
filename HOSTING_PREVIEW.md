@@ -36,6 +36,25 @@ Examples:
 
 Vercel preview URLs are unique by default. Vercel documents preview aliases and custom domains separately, but the key product constraint here is simpler: pick one stable HTTPS origin for AnkiConnect validation.
 
+## Important constraint: paid product should use a custom domain
+
+For a real paid product, do not stay behind a raw `*.vercel.app` origin as the primary user-facing surface.
+
+Why this should be tracked explicitly:
+
+- paid product trust is stronger on a real domain
+- Google auth and user-facing email/callback flows look more legitimate
+- AnkiConnect allowed-origin setup is clearer with one owned stable domain
+- a custom domain avoids product messaging that feels temporary or preview-only
+
+Practical recommendation:
+
+- keep `*.vercel.app` for early validation if needed
+- buy and attach a custom domain before real billing / public production launch
+- prefer one stable app domain such as:
+  - `app.<your-domain>`
+  - or `<your-domain>` directly for the app
+
 ## Frontend on Vercel
 
 Create one Vercel project from this repo with:

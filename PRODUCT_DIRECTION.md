@@ -70,6 +70,7 @@ The product should expose its core reading and discovery loop for free, then req
 - Strong Thai-English dictionary / translation quality
 - Authenticated user accounts and user-scoped persistence
 - Production database for hosted multi-user data
+- A real custom domain before paid public launch
 - Flashcard export quality
 - Reliable local-Anki connection flow
 - Video fragment reference strategy
