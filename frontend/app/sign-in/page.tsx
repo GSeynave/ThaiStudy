@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 
 export default function SignInPage() {
+  return (
+    <Suspense fallback={<SignInPageSkeleton />}>
+      <SignInPageContent />
+    </Suspense>
+  );
+}
+
+function SignInPageContent() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -164,6 +172,30 @@ export default function SignInPage() {
               </p>
             </div>
           </aside>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function SignInPageSkeleton() {
+  return (
+    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center">
+        <section className="grid w-full gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-[1.75rem] border border-[color:var(--surface-border)] bg-[color:var(--surface-1)]/94 px-6 py-7 shadow-[0_24px_60px_-40px_rgba(34,27,18,0.28)] backdrop-blur sm:px-8 sm:py-8">
+            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
+              Thai Study
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold text-[color:var(--text-strong)] sm:text-4xl">
+              Sign in to keep your study data separate.
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-[color:var(--text-main)] sm:text-base">
+              Loading sign-in…
+            </p>
+          </div>
+
+          <aside className="rounded-[1.75rem] border border-[color:var(--surface-border)] bg-[color:var(--surface-2)]/92 px-6 py-7 shadow-[0_24px_60px_-40px_rgba(34,27,18,0.2)] backdrop-blur sm:px-8 sm:py-8" />
         </section>
       </div>
     </main>
