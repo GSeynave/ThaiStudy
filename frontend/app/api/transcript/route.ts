@@ -9,6 +9,7 @@ import {
   YoutubeTranscriptVideoUnavailableError,
   type TranscriptSegment,
 } from "youtube-transcript-plus";
+import type { FetchParams } from "youtube-transcript-plus";
 
 const DEFAULT_LANGUAGE = "th";
 
@@ -18,6 +19,18 @@ type TranscriptRouteResponse = {
 
 type TranscriptRouteError = {
   error: string;
+};
+
+const YOUTUBE_FETCH_TIMEOUT_MS = 12000;
+const YOUTUBE_FETCH_HEADERS = {
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7",
+  "Accept-Language": "th,en-US;q=0.9,en;q=0.8",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  Referer: "https://www.youtube.com/",
+  Origin: "https://www.youtube.com",
+  Cookie: "CONSENT=YES+cb.20210328-17-p0.en+FX+471; PREF=hl=th&tz=UTC",
 };
 
 const HTML_ENTITY_MAP: Record<string, string> = {
@@ -72,6 +85,21 @@ function normalizeTranscriptSegments(segments: TranscriptSegment[]) {
   }));
 }
 
+async function youtubeFetch({ url, method = "GET", body, headers = {}, signal }: FetchParams) {
+  const mergedSignal = signal ?? AbortSignal.timeout(YOUTUBE_FETCH_TIMEOUT_MS);
+
+  return fetch(url, {
+    method,
+    body,
+    headers: {
+      ...YOUTUBE_FETCH_HEADERS,
+      ...headers,
+    },
+    cache: "no-store",
+    signal: mergedSignal,
+  });
+}
+
 function getTranscriptErrorResponse(error: unknown) {
   if (error instanceof YoutubeTranscriptInvalidVideoIdError) {
     return jsonError("Enter a valid YouTube video ID or URL.", 400);
@@ -115,7 +143,14 @@ export async function GET(request: Request) {
 
   try {
     const segments = normalizeTranscriptSegments(
-      await fetchTranscript(videoId, { lang }),
+      await fetchTranscript(videoId, {
+        lang,
+        retries: 2,
+        retryDelay: 1200,
+        videoFetch: youtubeFetch,
+        playerFetch: youtubeFetch,
+        transcriptFetch: youtubeFetch,
+      }),
     );
     const payload: TranscriptRouteResponse = { segments };
     return Response.json(payload);
