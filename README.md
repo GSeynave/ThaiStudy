@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Thai Study
 
-## Getting Started
+Thai Study is a transcript-first workspace for learning Thai from YouTube videos.
 
-First, run the development server:
+The target product is a hosted SaaS application with authenticated users, paid plans, and user-local Anki export.
+
+Current flow:
+- open a YouTube video
+- read the Thai transcript in sync with the player
+- click a word or short phrase
+- see dictionary-backed translation, pronunciation, tones, and isolated audio
+- review a flashcard draft and export it to Anki
+- track lightweight study history across videos and clicked words
+
+## Workspace layout
+
+| Path | Purpose |
+| --- | --- |
+| `frontend/` | Next.js app for the study UI and route-handler proxy layer |
+| `backend/` | FastAPI service for translation, dictionary parsing, study history, and flashcard payload generation |
+| `dev.sh` | Local helper to start, stop, restart, and inspect frontend/backend processes |
+
+## Quick start
+
+### Option 1: use the helper script
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+./dev.sh start
+./dev.sh status
+./dev.sh logs
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Option 2: run services manually
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Frontend:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## Learn More
+Backend:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cd backend
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+uvicorn app.main:app --reload
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For hosted-style persistence, set `DATABASE_URL` for the backend. If it is unset, the backend falls back to the local SQLite file during development.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+You can keep backend database settings in `backend/.env.local`. `./dev.sh start` and `./dev.sh restart` will load that file automatically before launching FastAPI. Start from `backend/.env.example`.
 
-## Deploy on Vercel
+Hosted schema changes now live under `supabase/migrations/`. Apply them with the Supabase CLI against your target database instead of relying on backend startup to create Postgres tables.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Set the frontend environment in `frontend/.env.local`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+BACKEND_API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
+```
+
+For Supabase magic-link auth to work locally, add these redirect URLs in the Supabase dashboard:
+
+- `http://127.0.0.1:3000/auth/callback`
+- `http://localhost:3000/auth/callback`
+
+For browser-direct Anki export to work locally, AnkiConnect must allow the frontend origin exactly, including port.
+
+Add these allowed origins in your AnkiConnect config:
+
+- `http://127.0.0.1:3000`
+- `http://localhost:3000`
+
+If AnkiConnect only allows `http://localhost` without the `:3000` port, the browser will still block the request with a CORS error.
+
+## Main capabilities
+
+### Frontend
+
+- transcript browsing with video sync
+- word click / phrase selection
+- tone-color mode with inline tone teaching tooltips
+- flashcard review dialog
+- Anki deck selection with last-used deck persistence
+- recent video and word activity display
+- local Anki connection and export UX
+- Supabase magic-link sign-in flow
+- free-plan flashcard export quota: 20 per month
+
+### Backend
+
+- contextual translation lookup
+- `thai-language.com` dictionary parsing
+- pronunciation and tone metadata
+- flashcard payload generation and export metadata
+- current local-development SQLite-backed study history for videos, clicks, and exported flashcards
+
+### Local Anki bridge
+
+- browser-side AnkiConnect checks and deck discovery
+- browser-side export using the custom `ThaiStudyBasic` model
+- export success/failure still reported back to the backend for hosted study history
+
+## Product direction
+
+Production architecture is intentionally different from the current local-development setup:
+
+- the app is meant to be hosted
+- users authenticate and have isolated data
+- billing is part of the hosted product
+- Anki remains local on the user's machine
+- production export must happen through a client-side bridge, not by the hosted backend calling `127.0.0.1`
+
+## Important docs
+
+- [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md): product intent and UX direction
+- [TODO.md](TODO.md): current development backlog
+- [ARCHITECTURE.md](ARCHITECTURE.md): system layout and data flow
+- [DEVELOPMENT.md](DEVELOPMENT.md): local development notes and conventions
+- [DATA_RETENTION.md](DATA_RETENTION.md): current account/data purge behavior and retention notes
+- [HOSTING_PREVIEW.md](HOSTING_PREVIEW.md): first hosted preview shape and validation plan
+- [DIRECT_ANKI_VALIDATION.md](DIRECT_ANKI_VALIDATION.md): direct-browser AnkiConnect test checklist

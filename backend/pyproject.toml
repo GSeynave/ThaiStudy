@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thai-study-backend"
+version = "0.1.0"
+description = "FastAPI backend for contextual Thai translation."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.121,<0.122",
+  "uvicorn>=0.38,<0.39",
+  "numpy>=2.2,<3",
+  "PyThaiNLP>=5.3.4,<5.4",
+  "psycopg[binary]>=3.2,<3.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]

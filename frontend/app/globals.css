@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+:root,
+[data-theme="cozy"] {
+  --background: #faf7f2;
+  --foreground: #5b4636;
+  --text-strong: #2f241b;
+  --text-main: #5b4636;
+  --text-muted: #7f6856;
+  --text-soft: #9b8574;
+  --surface-1: #f7f1e8;
+  --surface-2: #f2e9dc;
+  --surface-3: #fbf6ee;
+  --surface-elevated: rgb(255 255 255 / 0.58);
+  --surface-overlay: rgb(255 255 255 / 0.42);
+  --surface-strong: #efe4d5;
+  --surface-border: rgb(185 161 132 / 0.28);
+  --surface-border-strong: rgb(168 142 112 / 0.4);
+  --input-bg: #fffdfa;
+  --input-border: rgb(179 156 127 / 0.5);
+  --input-focus: rgb(185 110 37 / 0.42);
+  --accent-solid: #2f241b;
+  --accent-solid-hover: #433327;
+  --accent-soft: rgb(83 62 44 / 0.08);
+  --accent-text: #6f4521;
+  --accent-border: rgb(171 107 43 / 0.22);
+  --success-bg: #edf7ef;
+  --success-border: #b9ddc2;
+  --success-text: #23623a;
+  --danger-bg: #fff0ef;
+  --danger-border: #efc3bf;
+  --danger-text: #ad433f;
+  --selection-bg: rgb(217 119 6 / 0.26);
+  --selection-text: #4a3527;
+  --tutorial-bg:
+    linear-gradient(160deg, rgb(255 250 243 / 0.82), rgb(247 239 227 / 0.96));
+  --preview-shell-bg: linear-gradient(180deg, #0f1512 0%, #17201b 100%);
+  --preview-shell-border: #26342d;
+  --preview-text-main: #e4eee7;
+  --preview-text-strong: #f1f6f2;
+  --preview-text-muted: #c6d4cc;
+  --preview-text-soft: #95afa0;
+  --preview-accent: #bbddc5;
+  --preview-divider: #2b3a32;
+  --preview-audio-accent: #80a48e;
+  --app-background:
+    radial-gradient(circle at top left, rgb(244 226 196 / 0.48), transparent 34%),
+    radial-gradient(circle at top right, rgb(232 211 177 / 0.34), transparent 28%),
+    linear-gradient(180deg, #faf7f2 0%, #f3ece2 100%);
+}
+
+[data-theme="night"] {
+  --background: #241912;
+  --foreground: #f2e8d7;
+  --text-strong: #f5ebdc;
+  --text-main: #e7d8c1;
+  --text-muted: #c2ac8d;
+  --text-soft: #a78d71;
+  --surface-1: #31221a;
+  --surface-2: #3b2a20;
+  --surface-3: #463226;
+  --surface-elevated: rgb(255 255 255 / 0.06);
+  --surface-overlay: rgb(255 255 255 / 0.04);
+  --surface-strong: #4a372b;
+  --surface-border: rgb(180 142 94 / 0.22);
+  --surface-border-strong: rgb(199 160 109 / 0.34);
+  --input-bg: #3b2b21;
+  --input-border: rgb(191 151 102 / 0.34);
+  --input-focus: rgb(205 143 67 / 0.36);
+  --accent-solid: #e7d8c1;
+  --accent-solid-hover: #f3e7d5;
+  --accent-soft: rgb(229 200 160 / 0.08);
+  --accent-text: #f0d7b6;
+  --accent-border: rgb(207 153 92 / 0.28);
+  --success-bg: rgb(58 99 69 / 0.22);
+  --success-border: rgb(126 180 140 / 0.28);
+  --success-text: #b8dfc2;
+  --danger-bg: rgb(128 59 55 / 0.22);
+  --danger-border: rgb(194 118 113 / 0.28);
+  --danger-text: #f0b6b1;
+  --selection-bg: rgb(217 119 6 / 0.22);
+  --selection-text: #f2e8d7;
+  --tutorial-bg:
+    linear-gradient(160deg, rgb(58 42 31 / 0.74), rgb(48 34 25 / 0.96));
+  --preview-shell-bg: linear-gradient(180deg, #101714 0%, #18211d 100%);
+  --preview-shell-border: #314139;
+  --preview-text-main: #e8f0ea;
+  --preview-text-strong: #f6faf7;
+  --preview-text-muted: #cedbd3;
+  --preview-text-soft: #9ab2a3;
+  --preview-accent: #c4e1cb;
+  --preview-divider: #34453d;
+  --preview-audio-accent: #96b7a3;
+  --app-background:
+    radial-gradient(circle at top left, rgb(120 84 49 / 0.24), transparent 30%),
+    radial-gradient(circle at top right, rgb(88 59 32 / 0.2), transparent 26%),
+    linear-gradient(180deg, #2a1d15 0%, #1d140f 100%);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-thai: var(--font-noto-sans-thai);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #241912;
+    --foreground: #f2e8d7;
+  }
+}
+
+html {
+  background: var(--app-background);
+}
+
+body {
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-noto-sans-thai), var(--font-geist-sans), sans-serif;
+}
+
+* {
+  border-color: var(--surface-border);
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-text);
+}
