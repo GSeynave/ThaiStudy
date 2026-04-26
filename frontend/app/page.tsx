@@ -2958,6 +2958,19 @@ export default function Home() {
     );
   }
 
+  async function fetchTranscriptInBrowser(videoId: string, signal: AbortSignal) {
+    const { fetchTranscript: fetchYoutubeTranscript } = await import(
+      "youtube-transcript-plus"
+    );
+
+    return (await fetchYoutubeTranscript(videoId, {
+      lang: TRANSCRIPT_LANGUAGE,
+      retries: 1,
+      retryDelay: 800,
+      signal,
+    })) as TranscriptSegment[];
+  }
+
   async function fetchTranscript(videoId: string) {
     transcriptAbortRef.current?.abort();
 
@@ -3005,16 +3018,45 @@ export default function Home() {
         return;
       }
 
-      const message =
-        error instanceof Error ? error.message : "Could not fetch transcript.";
+      try {
+        const browserSegments = await fetchTranscriptInBrowser(videoId, abortController.signal);
 
-      setTranscript({
-        status: "error",
-        segments: [],
-        error: message,
-      });
-      pushToast("error", "Transcript unavailable", message, "Transcript");
-      setTranscriptPage(0);
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        setTranscript({
+          status: "ready",
+          segments: browserSegments,
+          error: null,
+        });
+        pushToast(
+          "info",
+          "Transcript fetched locally",
+          "The hosted transcript fetch failed, but your browser could fetch the transcript directly from YouTube.",
+          "Transcript",
+          7000,
+        );
+        return;
+      } catch (browserError) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        const serverMessage =
+          error instanceof Error ? error.message : "Could not fetch transcript.";
+        const browserMessage =
+          browserError instanceof Error ? browserError.message : "Browser transcript retry failed.";
+        const message = `${serverMessage} Browser retry also failed: ${browserMessage}`;
+
+        setTranscript({
+          status: "error",
+          segments: [],
+          error: message,
+        });
+        pushToast("error", "Transcript unavailable", message, "Transcript");
+        setTranscriptPage(0);
+      }
     }
   }
 
