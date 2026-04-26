@@ -28,6 +28,7 @@ Anki stays local:
 
 - load a YouTube video and transcript
 - use TranscriptAPI as the current hosted transcript source, while keeping transcript rendering/source handling inside the frontend route layer
+- cache successful transcript provider fetches through the frontend server layer to reduce repeat provider spend
 - render the study workspace
 - handle word clicks and phrase selection
 - show translation, pronunciation, and tone-teaching UI
@@ -134,6 +135,11 @@ Shared proxy helper:
 
 - `frontend/app/api/_lib/backend-proxy.ts`
 
+Shared frontend service/config helpers:
+
+- `frontend/lib/config/`
+- `frontend/lib/ops/server-log.ts`
+
 Proxy groups:
 
 - `frontend/app/api/study/*`
@@ -180,6 +186,12 @@ Current groundwork:
 - error monitoring
 - dependency-aware health checks
 - CI for linting, type-checking, tests, and builds
+
+Current frontend observability groundwork:
+
+- transcript provider fetches and provider failures log through `frontend/lib/ops/server-log.ts`
+- backend proxy transport failures log through the same surface
+- auth sign-in, sign-up, Google OAuth start, and callback exchange failures now emit structured server-side events
 
 ## Important constraints
 

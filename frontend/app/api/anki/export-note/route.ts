@@ -1,5 +1,7 @@
 import { buildAuthHeaders, jsonAuthRequired } from "../../_lib/auth";
-import { getBackendBaseUrl, proxyBackendPost, readJsonBody } from "../../_lib/backend-proxy";
+import { proxyBackendPost, readJsonBody } from "../../_lib/backend-proxy";
+import { getBackendBaseUrl } from "@/lib/config/server";
+import { logServerEvent } from "@/lib/ops/server-log";
 
 export async function POST(request: Request) {
   const authHeaders = await buildAuthHeaders();
@@ -39,6 +41,10 @@ export async function POST(request: Request) {
       );
     }
   } catch {
+    logServerEvent("error", "anki_export.quota_check_failed", {
+      path: "/api/study/quota",
+      backendBaseUrl: getBackendBaseUrl(),
+    });
     return Response.json(
       {
         detail:

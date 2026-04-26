@@ -1,6 +1,8 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import { getTranscriptApiKey } from "@/lib/config/server";
+import { logServerEvent } from "@/lib/ops/server-log";
 
 export type TranscriptSegment = {
   text: string;
@@ -8,6 +10,22 @@ export type TranscriptSegment = {
   duration: number;
   lang: string;
 };
+
+export type TranscriptProviderName = "transcriptapi";
+
+export type TranscriptFetchResult = {
+  provider: TranscriptProviderName;
+  segments: TranscriptSegment[];
+};
+
+export type TranscriptProviderErrorCode =
+  | "transcript_provider_not_configured"
+  | "transcript_not_available"
+  | "transcript_provider_auth_failed"
+  | "transcript_provider_no_credits"
+  | "transcript_provider_rate_limited"
+  | "transcript_provider_bad_response"
+  | "transcript_unknown_error";
 
 type TranscriptApiResponse = {
   language?: string;
@@ -27,6 +45,7 @@ type TranscriptApiSegment = {
 const DEFAULT_LANGUAGE = "th";
 const TRANSCRIPT_API_BASE_URL = "https://transcriptapi.com/api/v2";
 const TRANSCRIPT_REQUEST_TIMEOUT_MS = 12000;
+const TRANSCRIPT_PROVIDER_NAME: TranscriptProviderName = "transcriptapi";
 
 const HTML_ENTITY_MAP: Record<string, string> = {
   amp: "&",
@@ -68,14 +87,30 @@ function normalizeTranscriptText(text: string) {
   return normalized;
 }
 
-function getTranscriptApiKey() {
-  return process.env.TRANSCRIPT_API_KEY?.trim() || null;
+export class TranscriptProviderError extends Error {
+  constructor(
+    readonly code: TranscriptProviderErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "TranscriptProviderError";
+  }
 }
 
-async function fetchTranscriptFromProvider(videoId: string) {
+function createTranscriptProviderError(
+  code: TranscriptProviderErrorCode,
+  message: string,
+) {
+  return new TranscriptProviderError(code, message);
+}
+
+async function fetchTranscriptFromProvider(videoId: string): Promise<TranscriptFetchResult> {
   const apiKey = getTranscriptApiKey();
   if (!apiKey) {
-    throw new Error("Transcript provider is not configured.");
+    throw createTranscriptProviderError(
+      "transcript_provider_not_configured",
+      "Transcript provider is not configured.",
+    );
   }
 
   const response = await fetch(
@@ -90,57 +125,75 @@ async function fetchTranscriptFromProvider(videoId: string) {
   );
 
   if (response.status === 404) {
-    console.warn("[transcript] provider_not_available", {
+    logServerEvent("warn", "transcript.provider_not_available", {
       provider: "transcriptapi",
       videoId,
       status: response.status,
     });
-    throw new Error("No transcript is available for this video.");
+    throw createTranscriptProviderError(
+      "transcript_not_available",
+      "No transcript is available for this video.",
+    );
   }
 
   if (response.status === 401) {
-    console.error("[transcript] provider_auth_failed", {
+    logServerEvent("error", "transcript.provider_auth_failed", {
       provider: "transcriptapi",
       videoId,
       status: response.status,
     });
-    throw new Error("Transcript provider rejected the API key.");
+    throw createTranscriptProviderError(
+      "transcript_provider_auth_failed",
+      "Transcript provider rejected the API key.",
+    );
   }
 
   if (response.status === 402) {
-    console.error("[transcript] provider_no_credits", {
+    logServerEvent("error", "transcript.provider_no_credits", {
       provider: "transcriptapi",
       videoId,
       status: response.status,
     });
-    throw new Error("Transcript provider account has no available credits.");
+    throw createTranscriptProviderError(
+      "transcript_provider_no_credits",
+      "Transcript provider account has no available credits.",
+    );
   }
 
   if (response.status === 429) {
-    console.warn("[transcript] provider_rate_limited", {
+    logServerEvent("warn", "transcript.provider_rate_limited", {
       provider: "transcriptapi",
       videoId,
       status: response.status,
     });
-    throw new Error("Transcript provider rate-limited the request. Try again later.");
+    throw createTranscriptProviderError(
+      "transcript_provider_rate_limited",
+      "Transcript provider rate-limited the request. Try again later.",
+    );
   }
 
   if (!response.ok) {
-    console.error("[transcript] provider_bad_response", {
+    logServerEvent("error", "transcript.provider_bad_response", {
       provider: "transcriptapi",
       videoId,
       status: response.status,
     });
-    throw new Error(`Transcript provider returned HTTP ${response.status}.`);
+    throw createTranscriptProviderError(
+      "transcript_provider_bad_response",
+      `Transcript provider returned HTTP ${response.status}.`,
+    );
   }
 
   const payload = (await response.json()) as TranscriptApiResponse;
   if (!Array.isArray(payload.transcript) || payload.transcript.length === 0) {
-    console.error("[transcript] provider_empty_segments", {
+    logServerEvent("error", "transcript.provider_empty_segments", {
       provider: "transcriptapi",
       videoId,
     });
-    throw new Error("Transcript provider returned no transcript segments.");
+    throw createTranscriptProviderError(
+      "transcript_provider_bad_response",
+      "Transcript provider returned no transcript segments.",
+    );
   }
 
   const segments = payload.transcript
@@ -159,17 +212,39 @@ async function fetchTranscriptFromProvider(videoId: string) {
       }),
     );
 
-  console.info("[transcript] provider_fetch_success", {
-    provider: "transcriptapi",
+  logServerEvent("info", "transcript.provider_fetch_success", {
+    provider: TRANSCRIPT_PROVIDER_NAME,
     videoId,
     segmentCount: segments.length,
   });
 
-  return segments;
+  return {
+    provider: TRANSCRIPT_PROVIDER_NAME,
+    segments,
+  };
+}
+
+async function fetchCachedTranscriptResult(videoId: string): Promise<TranscriptFetchResult> {
+  try {
+    return await fetchTranscriptFromProvider(videoId);
+  } catch (error) {
+    if (error instanceof TranscriptProviderError) {
+      throw error;
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Could not fetch transcript.";
+    logServerEvent("error", "transcript.provider_unknown_failure", {
+      provider: TRANSCRIPT_PROVIDER_NAME,
+      videoId,
+      message,
+    });
+    throw createTranscriptProviderError("transcript_unknown_error", message);
+  }
 }
 
 export const getCachedTranscript = unstable_cache(
-  async (videoId: string) => fetchTranscriptFromProvider(videoId),
+  async (videoId: string) => fetchCachedTranscriptResult(videoId),
   ["transcriptapi-youtube-transcript"],
   {
     tags: ["transcripts"],

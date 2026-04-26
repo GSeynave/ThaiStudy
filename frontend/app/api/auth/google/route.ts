@@ -1,5 +1,6 @@
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
+import { logServerEvent } from "@/lib/ops/server-log";
 
 function resolveSafeNextPath(value: unknown) {
   if (typeof value !== "string") {
@@ -16,6 +17,7 @@ function resolveSafeNextPath(value: unknown) {
 
 export async function POST(request: Request) {
   if (!hasSupabaseConfig()) {
+    logServerEvent("error", "auth.google_sign_in_not_configured");
     return Response.json(
       { error: "Supabase auth is not configured." },
       { status: 503 },
@@ -38,15 +40,26 @@ export async function POST(request: Request) {
   });
 
   if (error) {
+    logServerEvent("error", "auth.google_sign_in_failed", {
+      message: error.message,
+      nextPath,
+    });
     return Response.json({ error: error.message }, { status: 400 });
   }
 
   if (!data.url) {
+    logServerEvent("error", "auth.google_sign_in_missing_redirect_url", {
+      nextPath,
+    });
     return Response.json(
       { error: "Could not start Google sign-in." },
       { status: 500 },
     );
   }
+
+  logServerEvent("info", "auth.google_sign_in_started", {
+    nextPath,
+  });
 
   return Response.json({
     ok: true,

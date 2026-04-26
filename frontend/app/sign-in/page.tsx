@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { ToastViewport, type AppToast } from "@/components/toast";
+import { hasSupabaseConfig } from "@/lib/config/public";
 
 export default function SignInPage() {
   return (
@@ -33,10 +34,7 @@ function SignInPageContent() {
   const toastIdRef = useRef(0);
 
   const callbackError = searchParams.get("error");
-  const isSupabaseConfigured = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  );
+  const isSupabaseConfigured = hasSupabaseConfig();
 
   const dismissToast = useCallback((toastId: number) => {
     setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== toastId));

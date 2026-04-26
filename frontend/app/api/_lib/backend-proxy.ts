@@ -1,8 +1,5 @@
-const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:8000";
-
-export function getBackendBaseUrl() {
-  return process.env.BACKEND_API_BASE_URL?.trim() || DEFAULT_BACKEND_BASE_URL;
-}
+import { getBackendBaseUrl } from "@/lib/config/server";
+import { logServerEvent } from "@/lib/ops/server-log";
 
 export async function readJsonBody(
   request: Request,
@@ -12,6 +9,10 @@ export async function readJsonBody(
   try {
     return await request.json();
   } catch {
+    logServerEvent("warn", "request.invalid_json_body", {
+      method: request.method,
+      pathname: new URL(request.url).pathname,
+    });
     return Response.json(errorPayload, { status: errorStatus });
   }
 }
@@ -24,6 +25,11 @@ export async function proxyBackendGet(path: string, errorPayload: object) {
     const payload = await response.json();
     return Response.json(payload, { status: response.status });
   } catch {
+    logServerEvent("error", "backend_proxy.request_failed", {
+      method: "GET",
+      path,
+      backendBaseUrl: getBackendBaseUrl(),
+    });
     return Response.json(errorPayload, { status: 502 });
   }
 }
@@ -49,6 +55,11 @@ export async function proxyBackendPost(
     const payload = await response.json();
     return Response.json(payload, { status: response.status });
   } catch {
+    logServerEvent("error", "backend_proxy.request_failed", {
+      method: "POST",
+      path,
+      backendBaseUrl: getBackendBaseUrl(),
+    });
     return Response.json(errorPayload, { status: 502 });
   }
 }
@@ -66,6 +77,12 @@ export async function proxyBackendAuthedGet(
     const payload = await response.json();
     return Response.json(payload, { status: response.status });
   } catch {
+    logServerEvent("error", "backend_proxy.request_failed", {
+      method: "GET",
+      path,
+      backendBaseUrl: getBackendBaseUrl(),
+      authed: true,
+    });
     return Response.json(errorPayload, { status: 502 });
   }
 }
@@ -90,6 +107,12 @@ export async function proxyBackendAuthedJson(
     const payload = await response.json();
     return Response.json(payload, { status: response.status });
   } catch {
+    logServerEvent("error", "backend_proxy.request_failed", {
+      method,
+      path,
+      backendBaseUrl: getBackendBaseUrl(),
+      authed: true,
+    });
     return Response.json(errorPayload, { status: 502 });
   }
 }

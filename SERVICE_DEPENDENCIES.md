@@ -42,6 +42,7 @@ This file tracks the external services Thai Study currently depends on, why each
 - current status:
   - active trial dependency
   - works for the hosted transcript path that previously failed
+  - currently the single transcript source in the app
 - risk notes:
   - paid/credit-based service
   - adds third-party dependency for transcript loading

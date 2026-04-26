@@ -1,6 +1,12 @@
-import { getCachedTranscript, type TranscriptSegment } from "@/lib/transcript/provider";
+import {
+  getCachedTranscript,
+  TranscriptProviderError,
+  type TranscriptProviderName,
+  type TranscriptSegment,
+} from "@/lib/transcript/provider";
 
 type TranscriptRouteResponse = {
+  provider: TranscriptProviderName;
   segments: TranscriptSegment[];
 };
 
@@ -23,38 +29,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const segments = await getCachedTranscript(videoId);
-    const payload: TranscriptRouteResponse = { segments };
+    const transcript = await getCachedTranscript(videoId);
+    const payload: TranscriptRouteResponse = transcript;
     return Response.json(payload);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Could not fetch transcript.";
-
-    if (message === "Transcript provider is not configured.") {
-      return jsonError(message, 503, "transcript_provider_not_configured");
-    }
-
-    if (message === "No transcript is available for this video.") {
-      return jsonError(message, 404, "transcript_not_available");
-    }
-
-    if (message === "Transcript provider rejected the API key.") {
-      return jsonError(message, 503, "transcript_provider_auth_failed");
-    }
-
-    if (message === "Transcript provider account has no available credits.") {
-      return jsonError(message, 503, "transcript_provider_no_credits");
-    }
-
-    if (message === "Transcript provider rate-limited the request. Try again later.") {
-      return jsonError(message, 429, "transcript_provider_rate_limited");
-    }
-
-    if (
-      message.startsWith("Transcript provider returned HTTP ") ||
-      message === "Transcript provider returned no transcript segments."
-    ) {
-      return jsonError(message, 502, "transcript_provider_bad_response");
+    if (error instanceof TranscriptProviderError) {
+      const status =
+        error.code === "transcript_not_available"
+          ? 404
+          : error.code === "transcript_provider_rate_limited"
+            ? 429
+            : error.code === "transcript_provider_bad_response"
+              ? 502
+              : 503;
+      return jsonError(error.message, status, error.code);
     }
 
     return jsonError("Could not fetch transcript.", 500, "transcript_unknown_error");

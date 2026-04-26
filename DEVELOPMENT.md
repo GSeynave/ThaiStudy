@@ -76,6 +76,15 @@ Transcript provider setup:
 - when `TRANSCRIPT_API_KEY` is absent, transcript fetching is treated as not configured
 - current hosted validation confirms TranscriptAPI restores transcript loading for the tested hosted YouTube path
 
+Operational logging:
+
+- frontend route handlers now use `frontend/lib/ops/server-log.ts` for structured server-side events
+- keep logs at the dependency boundary:
+  - transcript provider failures
+  - backend proxy failures
+  - auth callback / sign-in / sign-up failures
+- do not log raw tokens, cookies, or full user payloads
+
 ## Current design principles
 
 - The app is transcript-first.
@@ -87,11 +96,14 @@ Transcript provider setup:
 
 ### Frontend
 
-- Most UI currently lives in `frontend/app/page.tsx`
+- `frontend/app/page.tsx` is now the top-level coordinator, not the main implementation dump
+- presentational study UI lives in `frontend/components/study/panels.tsx`
+- study state/workflow hooks now live under `frontend/lib/study/`
 - Transcript tone teaching is client-side and heuristic
 - Local Anki bridge logic now lives in `frontend/lib/anki/local-bridge.ts`
 - Dictionary audio is fetched through `frontend/app/api/dictionary-audio/route.ts` so browser-side Anki export can upload media without third-party CORS blocking
 - Backend proxy helpers live in `frontend/app/api/_lib/backend-proxy.ts`
+- frontend env/config helpers now live under `frontend/lib/config/`
 - Supabase SSR helpers now live under `frontend/lib/supabase/`
 - `frontend/app/api/_lib/auth.ts` is now Supabase-only for hosted auth
 - Auth routes now include `frontend/app/api/auth/sign-in/route.ts`, `sign-up/route.ts`, `google/route.ts`, `sign-out/route.ts`, and `frontend/app/auth/callback/route.ts`
