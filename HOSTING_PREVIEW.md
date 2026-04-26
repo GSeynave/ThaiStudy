@@ -55,8 +55,8 @@ After deployment, note the exact frontend origin you want to keep stable.
 Current hosted transcript status:
 
 - direct hosted YouTube extraction was not reliable enough from Vercel
-- current hosted transcript path uses TranscriptAPI when `TRANSCRIPT_API_KEY` is configured
-- the old direct YouTube route remains as the fallback when that key is absent
+- current hosted transcript path uses TranscriptAPI as the only transcript source
+- transcript fetches should reuse the server cache after the first successful provider lookup
 
 ## Backend on Railway
 

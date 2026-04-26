@@ -71,8 +71,9 @@ Transcript provider setup:
 
 - set `TRANSCRIPT_API_KEY` in `frontend/.env.local` for local testing
 - set the same key in Vercel project env vars for hosted testing
-- when `TRANSCRIPT_API_KEY` is present, `frontend/app/api/transcript/route.ts` uses TranscriptAPI first
-- when it is absent, the route falls back to the current YouTube extraction code path
+- `frontend/app/api/transcript/route.ts` now uses TranscriptAPI as the single transcript source
+- successful transcript fetches are cached through Next's server cache to reduce repeated provider calls
+- when `TRANSCRIPT_API_KEY` is absent, transcript fetching is treated as not configured
 - current hosted validation confirms TranscriptAPI restores transcript loading for the tested hosted YouTube path
 
 ## Current design principles

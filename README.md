@@ -66,6 +66,7 @@ TRANSCRIPT_API_KEY=your-transcriptapi-key
 ```
 
 `TRANSCRIPT_API_KEY` is server-only and is used by the frontend transcript route handler. Do not expose it via `NEXT_PUBLIC_*`.
+Hosted transcript fetching now depends on `TranscriptAPI`. Without `TRANSCRIPT_API_KEY`, transcript loading is not available in the hosted path.
 
 For Supabase auth to work locally, add these redirect URLs in the Supabase dashboard:
 
@@ -90,7 +91,7 @@ If AnkiConnect only allows `http://localhost` without the `:3000` port, the brow
 ### Frontend
 
 - transcript browsing with video sync
-- hosted transcript fetch through TranscriptAPI when configured
+- hosted transcript fetch through TranscriptAPI
 - word click / phrase selection
 - tone-color mode with inline tone teaching tooltips
 - flashcard review dialog

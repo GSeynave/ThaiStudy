@@ -36,7 +36,7 @@ This file tracks the external services Thai Study currently depends on, why each
 ### TranscriptAPI
 
 - role: hosted transcript provider for YouTube videos
-- required for: restoring hosted transcript loading where direct YouTube extraction from Vercel failed
+- required for: current hosted transcript loading and transcript cost control via cached provider fetches
 - integration point: `frontend/app/api/transcript/route.ts` via `TRANSCRIPT_API_KEY`
 - expected to stay: undecided
 - current status:
