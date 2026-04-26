@@ -117,6 +117,17 @@ type AppSessionResponse = {
   mode: "supabase" | "none";
 };
 
+type BrowserTranscriptTrack = {
+  languageCode?: string;
+  baseUrl?: string;
+  url?: string;
+};
+
+type BrowserPlayerClientConfig = {
+  clientName: string;
+  clientVersion: string;
+};
+
 type ToneLabel = "mid" | "low" | "falling" | "high" | "rising" | "unknown";
 
 type TranslationSuggestion = {
@@ -364,12 +375,18 @@ declare global {
 
 const YOUTUBE_IFRAME_API_URL = "https://www.youtube.com/iframe_api";
 const TRANSCRIPT_LANGUAGE = "th";
+const BROWSER_TRANSCRIPT_XML_RE = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
 const ANKI_LAST_DECK_STORAGE_KEY = "thai-study:last-anki-deck";
 const ANKI_AUTO_EXPORT_STORAGE_KEY = "thai-study:auto-export";
 const THEME_STORAGE_KEY = "thai-study:theme";
 const TONE_COLORS_STORAGE_KEY = "thai-study:tone-colors";
 const YOUTUBE_VIDEO_ID_PATTERN = /^[\w-]{11}$/;
 const TRANSCRIPT_SEGMENTS_PER_PAGE = 6;
+const BROWSER_PLAYER_CLIENTS: BrowserPlayerClientConfig[] = [
+  { clientName: "ANDROID", clientVersion: "20.10.38" },
+  { clientName: "WEB", clientVersion: "2.20250305.01.00" },
+  { clientName: "TVHTML5", clientVersion: "7.20250305.16.00" },
+];
 const HIGH_CLASS_CONSONANTS = new Set("ขฃฉฐถผฝศษสห");
 const MID_CLASS_CONSONANTS = new Set("กจฎฏดตบปอ");
 const LOW_SONORANTS = new Set("งญณนมยรลวฬ");
@@ -2959,16 +2976,117 @@ export default function Home() {
   }
 
   async function fetchTranscriptInBrowser(videoId: string, signal: AbortSignal) {
-    const { fetchTranscript: fetchYoutubeTranscript } = await import(
-      "youtube-transcript-plus"
-    );
+    const decodeTranscriptText = (text: string) =>
+      text
+        .replaceAll("&amp;", "&")
+        .replaceAll("&lt;", "<")
+        .replaceAll("&gt;", ">")
+        .replaceAll("&quot;", '"')
+        .replaceAll("&#39;", "'")
+        .replaceAll("&apos;", "'");
 
-    return (await fetchYoutubeTranscript(videoId, {
-      lang: TRANSCRIPT_LANGUAGE,
-      retries: 1,
-      retryDelay: 800,
+    const watchResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      cache: "no-store",
       signal,
-    })) as TranscriptSegment[];
+    });
+    if (!watchResponse.ok) {
+      throw new Error(`Browser watch request returned HTTP ${watchResponse.status}.`);
+    }
+
+    const watchBody = await watchResponse.text();
+    const apiKeyMatch =
+      watchBody.match(/"INNERTUBE_API_KEY":"([^"]+)"/) ??
+      watchBody.match(/INNERTUBE_API_KEY\\":\\"([^\\"]+)\\"/);
+    if (!apiKeyMatch) {
+      throw new Error("Browser watch page did not expose an Innertube API key.");
+    }
+
+    let tracks: BrowserTranscriptTrack[] | null = null;
+
+    for (const client of BROWSER_PLAYER_CLIENTS) {
+      const playerResponse = await fetch(
+        `https://www.youtube.com/youtubei/v1/player?key=${apiKeyMatch[1]}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: client.clientName,
+                clientVersion: client.clientVersion,
+              },
+            },
+            videoId,
+          }),
+          cache: "no-store",
+          signal,
+        },
+      );
+
+      if (!playerResponse.ok) {
+        continue;
+      }
+
+      const playerJson = (await playerResponse.json()) as {
+        captions?: {
+          playerCaptionsTracklistRenderer?: {
+            captionTracks?: BrowserTranscriptTrack[];
+          };
+        };
+        playerCaptionsTracklistRenderer?: {
+          captionTracks?: BrowserTranscriptTrack[];
+        };
+      };
+
+      const tracklist =
+        playerJson.captions?.playerCaptionsTracklistRenderer ??
+        playerJson.playerCaptionsTracklistRenderer;
+      if (Array.isArray(tracklist?.captionTracks) && tracklist.captionTracks.length > 0) {
+        tracks = tracklist.captionTracks;
+        break;
+      }
+    }
+
+    if (!tracks) {
+      throw new Error("Browser player responses did not expose caption tracks.");
+    }
+
+    const selectedTrack = tracks.find((track) => track.languageCode === TRANSCRIPT_LANGUAGE);
+    if (!selectedTrack) {
+      throw new Error(
+        `Browser transcript retry could not find a ${TRANSCRIPT_LANGUAGE} caption track.`,
+      );
+    }
+
+    const transcriptUrl = (selectedTrack.baseUrl ?? selectedTrack.url)?.replace(/&fmt=[^&]+/, "");
+    if (!transcriptUrl) {
+      throw new Error("Browser transcript retry did not receive a transcript URL.");
+    }
+
+    const transcriptResponse = await fetch(transcriptUrl, {
+      cache: "no-store",
+      signal,
+    });
+    if (!transcriptResponse.ok) {
+      throw new Error(`Browser transcript XML returned HTTP ${transcriptResponse.status}.`);
+    }
+
+    const transcriptBody = await transcriptResponse.text();
+    const matches = [...transcriptBody.matchAll(BROWSER_TRANSCRIPT_XML_RE)];
+    if (matches.length === 0) {
+      throw new Error("Browser transcript XML did not contain readable segments.");
+    }
+
+    return matches.map(
+      (match): TranscriptSegment => ({
+        text: decodeTranscriptText(match[3]),
+        duration: Number.parseFloat(match[2]),
+        offset: Number.parseFloat(match[1]),
+        lang: TRANSCRIPT_LANGUAGE,
+      }),
+    );
   }
 
   async function fetchTranscript(videoId: string) {
