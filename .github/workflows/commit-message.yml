@@ -1,0 +1,40 @@
+name: Commit Message
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  conventional-commits:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate commit messages on push
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          for commit in $(git rev-list "${{ github.event.before }}..${{ github.sha }}"); do
+            git log -1 --format=%B "$commit" > /tmp/commit-msg
+            node scripts/check-commit-message.mjs /tmp/commit-msg
+          done
+
+      - name: Validate commit messages on pull request
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          for commit in $(git rev-list "origin/${{ github.base_ref }}..HEAD"); do
+            git log -1 --format=%B "$commit" > /tmp/commit-msg
+            node scripts/check-commit-message.mjs /tmp/commit-msg
+          done
