@@ -55,6 +55,18 @@ AnkiConnect local setup:
 - add both `http://localhost:3000` and `http://127.0.0.1:3000` to the AnkiConnect allowed-origins / web-origin config
 - allowing only `http://localhost` is not enough, because the browser requires an exact origin match including port
 
+Supabase auth setup:
+
+- local and hosted frontend callback URLs must be present in Supabase Auth URL configuration
+- current frontend auth UX is Google OAuth plus email/password
+- Google provider setup requires the Google Cloud OAuth redirect URI:
+  - `https://<your-project-ref>.supabase.co/auth/v1/callback`
+- if Google auth redirects unexpectedly, check in this order:
+  - Google OAuth client redirect URIs
+  - Supabase Auth provider config
+  - Supabase Auth URL configuration
+  - frontend `/auth/callback` route behavior
+
 ## Current design principles
 
 - The app is transcript-first.
@@ -73,7 +85,7 @@ AnkiConnect local setup:
 - Backend proxy helpers live in `frontend/app/api/_lib/backend-proxy.ts`
 - Supabase SSR helpers now live under `frontend/lib/supabase/`
 - `frontend/app/api/_lib/auth.ts` is now Supabase-only for hosted auth
-- Auth routes now include `frontend/app/api/auth/sign-in/route.ts`, `sign-out/route.ts`, and `frontend/app/auth/callback/route.ts`
+- Auth routes now include `frontend/app/api/auth/sign-in/route.ts`, `sign-up/route.ts`, `google/route.ts`, `sign-out/route.ts`, and `frontend/app/auth/callback/route.ts`
 - The dedicated auth UI now lives at `frontend/app/sign-in/page.tsx`
 
 ### Backend

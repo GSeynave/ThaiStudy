@@ -31,10 +31,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Password is required." }, { status: 400 });
   }
 
+  const callbackUrl = new URL("/auth/callback", request.url);
+  callbackUrl.searchParams.set("next", "/");
+
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      emailRedirectTo: callbackUrl.toString(),
+    },
   });
 
   if (error) {
@@ -43,6 +49,9 @@ export async function POST(request: Request) {
 
   return Response.json({
     ok: true,
-    message: "Signed in successfully.",
+    requiresEmailConfirmation: !data.session,
+    message: data.session
+      ? "Account created and signed in."
+      : "Check your email to confirm your account, then sign in.",
   });
 }

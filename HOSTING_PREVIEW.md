@@ -74,6 +74,17 @@ Keep the existing local callback URLs and add the hosted callback URL:
 
 If you move between multiple hosted frontend domains, Supabase auth callbacks and AnkiConnect allowed origins will both need to stay aligned.
 
+If you enable Google sign-in, also configure the Google OAuth client with this authorized redirect URI:
+
+- `https://<your-project-ref>.supabase.co/auth/v1/callback`
+
+The flow boundary is:
+
+- browser starts Google OAuth through the frontend
+- Supabase handles the provider exchange
+- Supabase redirects back to the frontend `/auth/callback`
+- the frontend callback exchanges the code for the session cookie
+
 ## AnkiConnect config for hosted validation
 
 Add the exact hosted frontend origin to AnkiConnect's allowed origins.
@@ -89,7 +100,7 @@ Do not assume a partial hostname is enough. Browser CORS checks require the exac
 
 Once the hosted frontend is live:
 
-1. Sign in through Supabase and confirm `/api/auth/session` resolves correctly.
+1. Sign in through Google or email/password and confirm `/api/auth/session` resolves correctly.
 2. Confirm transcript and translation still work through the hosted frontend/backend pair.
 3. Add the hosted frontend origin to AnkiConnect allowed origins.
 4. Confirm Anki status connects from the hosted page.

@@ -64,10 +64,14 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 ```
 
-For Supabase magic-link auth to work locally, add these redirect URLs in the Supabase dashboard:
+For Supabase auth to work locally, add these redirect URLs in the Supabase dashboard:
 
 - `http://127.0.0.1:3000/auth/callback`
 - `http://localhost:3000/auth/callback`
+
+Google sign-in setup also requires enabling the Google provider in Supabase and registering the Supabase auth callback in Google Cloud:
+
+- `https://<your-project-ref>.supabase.co/auth/v1/callback`
 
 For browser-direct Anki export to work locally, AnkiConnect must allow the frontend origin exactly, including port.
 
@@ -89,7 +93,7 @@ If AnkiConnect only allows `http://localhost` without the `:3000` port, the brow
 - Anki deck selection with last-used deck persistence
 - recent video and word activity display
 - local Anki connection and export UX
-- Supabase magic-link sign-in flow
+- Supabase hosted auth with Google OAuth and email/password flows
 - free-plan flashcard export quota: 20 per month
 
 ### Backend
