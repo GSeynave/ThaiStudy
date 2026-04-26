@@ -52,6 +52,12 @@ Set environment variables:
 
 After deployment, note the exact frontend origin you want to keep stable.
 
+Current hosted transcript status:
+
+- direct hosted YouTube extraction was not reliable enough from Vercel
+- current hosted transcript path uses TranscriptAPI when `TRANSCRIPT_API_KEY` is configured
+- the old direct YouTube route remains as the fallback when that key is absent
+
 ## Backend on Railway
 
 Create one Railway service from this repo with:

@@ -120,6 +120,13 @@
 - [ ] Validate that the chosen host supports the app's networking needs, Python runtime, and persistent data story.
 - [ ] Define environment variables, deploy steps, rollback steps, and backup expectations.
 
+### Transcript strategy
+
+- [x] Validate that direct hosted YouTube transcript extraction is unreliable from the current Vercel path.
+- [x] Restore hosted transcript loading via TranscriptAPI as the current provider-backed path.
+- [ ] Decide whether TranscriptAPI remains acceptable for v1 or should be replaced by a self-hosted extraction service.
+- [ ] Design a source-agnostic transcript service contract so future providers/sources are not wired directly into the UI model.
+
 ### Recommendation
 
 - [ ] Treat v1 production as: hosted authenticated SaaS with local-Anki export validated early and a fallback bridge plan if direct browser access fails.

@@ -90,6 +90,7 @@ If AnkiConnect only allows `http://localhost` without the `:3000` port, the brow
 ### Frontend
 
 - transcript browsing with video sync
+- hosted transcript fetch through TranscriptAPI when configured
 - word click / phrase selection
 - tone-color mode with inline tone teaching tooltips
 - flashcard review dialog
@@ -122,6 +123,7 @@ Production architecture is intentionally different from the current local-develo
 - billing is part of the hosted product
 - Anki remains local on the user's machine
 - production export must happen through a client-side bridge, not by the hosted backend calling `127.0.0.1`
+- hosted transcript fetching currently depends on TranscriptAPI while a longer-term self-hosted or multi-source strategy remains open
 
 ## Important docs
 
@@ -133,3 +135,4 @@ Production architecture is intentionally different from the current local-develo
 - [HOSTING_PREVIEW.md](HOSTING_PREVIEW.md): first hosted preview shape and validation plan
 - [DIRECT_ANKI_VALIDATION.md](DIRECT_ANKI_VALIDATION.md): direct-browser AnkiConnect test checklist
 - [RELEASING.md](RELEASING.md): pre-v1 versioning and Conventional Commit policy
+- [SERVICE_DEPENDENCIES.md](SERVICE_DEPENDENCIES.md): required external services, why they exist, and what still needs replacement

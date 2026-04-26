@@ -27,6 +27,7 @@ Anki stays local:
 ## Frontend responsibilities
 
 - load a YouTube video and transcript
+- use a hosted transcript provider when configured, while keeping transcript rendering/source handling inside the frontend route layer
 - render the study workspace
 - handle word clicks and phrase selection
 - show translation, pronunciation, and tone-teaching UI
@@ -185,3 +186,4 @@ Current groundwork:
 - The repo uses a newer/nonstandard Next.js version. Read local docs in `frontend/node_modules/next/dist/docs/` before making framework-level assumptions.
 - The product should not become a second spaced-repetition app. Anki remains the review system; Thai Study remains the preparation and export workspace.
 - Production Anki export cannot depend on the hosted backend reaching localhost on the user's machine.
+- There is no official public YouTube transcript API for arbitrary public videos, so hosted transcript fetching currently uses a provider-backed route when configured.
