@@ -42,6 +42,7 @@ type VideoMetadataResponse = {
 
 type TranscriptErrorResponse = {
   error: string;
+  code?: string;
 };
 
 type TranscriptState =
@@ -2981,8 +2982,12 @@ export default function Home() {
         | TranscriptErrorResponse;
 
       if (!response.ok) {
+        const errorMessage =
+          "error" in payload ? payload.error : "Could not fetch transcript.";
+        const diagnosticCode =
+          "code" in payload && typeof payload.code === "string" ? payload.code : null;
         throw new Error(
-          "error" in payload ? payload.error : "Could not fetch transcript.",
+          diagnosticCode ? `${errorMessage} [${diagnosticCode}]` : errorMessage,
         );
       }
 
