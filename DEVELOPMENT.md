@@ -73,6 +73,7 @@ Transcript provider setup:
 - set the same key in Vercel project env vars for hosted testing
 - `frontend/app/api/transcript/route.ts` now uses TranscriptAPI as the single transcript source
 - successful transcript fetches are cached through Next's server cache to reduce repeated provider calls
+- repeated "no transcript available" results now use a short-lived in-process negative cache to avoid paying for the same miss repeatedly during a live server process
 - when `TRANSCRIPT_API_KEY` is absent, transcript fetching is treated as not configured
 - current hosted validation confirms TranscriptAPI restores transcript loading for the tested hosted YouTube path
 
@@ -83,6 +84,7 @@ Operational logging:
   - transcript provider failures
   - backend proxy failures
   - auth callback / sign-in / sign-up failures
+- backend API routes now emit structured maintenance logs through `backend/app/logging_utils.py`
 - do not log raw tokens, cookies, or full user payloads
 
 ## Current design principles

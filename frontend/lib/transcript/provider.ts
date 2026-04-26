@@ -46,6 +46,8 @@ const DEFAULT_LANGUAGE = "th";
 const TRANSCRIPT_API_BASE_URL = "https://transcriptapi.com/api/v2";
 const TRANSCRIPT_REQUEST_TIMEOUT_MS = 12000;
 const TRANSCRIPT_PROVIDER_NAME: TranscriptProviderName = "transcriptapi";
+const NEGATIVE_TRANSCRIPT_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const negativeTranscriptCache = new Map<string, number>();
 
 const HTML_ENTITY_MAP: Record<string, string> = {
   amp: "&",
@@ -102,6 +104,28 @@ function createTranscriptProviderError(
   message: string,
 ) {
   return new TranscriptProviderError(code, message);
+}
+
+function readNegativeTranscriptCache(videoId: string) {
+  const expiresAt = negativeTranscriptCache.get(videoId);
+  if (!expiresAt) {
+    return false;
+  }
+
+  if (expiresAt <= Date.now()) {
+    negativeTranscriptCache.delete(videoId);
+    return false;
+  }
+
+  return true;
+}
+
+function writeNegativeTranscriptCache(videoId: string) {
+  negativeTranscriptCache.set(videoId, Date.now() + NEGATIVE_TRANSCRIPT_CACHE_TTL_MS);
+}
+
+function clearNegativeTranscriptCache(videoId: string) {
+  negativeTranscriptCache.delete(videoId);
 }
 
 async function fetchTranscriptFromProvider(videoId: string): Promise<TranscriptFetchResult> {
@@ -251,3 +275,31 @@ export const getCachedTranscript = unstable_cache(
     revalidate: false,
   },
 );
+
+export async function getTranscript(videoId: string): Promise<TranscriptFetchResult> {
+  if (readNegativeTranscriptCache(videoId)) {
+    logServerEvent("info", "transcript.negative_cache_hit", {
+      provider: TRANSCRIPT_PROVIDER_NAME,
+      videoId,
+    });
+    throw createTranscriptProviderError(
+      "transcript_not_available",
+      "No transcript is available for this video.",
+    );
+  }
+
+  try {
+    const transcript = await getCachedTranscript(videoId);
+    clearNegativeTranscriptCache(videoId);
+    return transcript;
+  } catch (error) {
+    if (
+      error instanceof TranscriptProviderError &&
+      error.code === "transcript_not_available"
+    ) {
+      writeNegativeTranscriptCache(videoId);
+    }
+
+    throw error;
+  }
+}

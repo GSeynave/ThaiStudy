@@ -1,6 +1,9 @@
+import logging
+
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.logging_utils import elapsed_ms, get_logger, log_event, start_timer, summarize_user_id
 from app.models import (
     AppUserAccountResponse,
     AnkiDecksResponse,
@@ -55,6 +58,7 @@ app = FastAPI(
     version="0.1.0",
     description="Contextual translation backend for the Thai Study frontend.",
 )
+logger = get_logger("thai_study.backend.api")
 
 
 def get_authenticated_user(
@@ -63,6 +67,13 @@ def get_authenticated_user(
     try:
         return verify_bearer_token(authorization)
     except SupabaseAuthError as error:
+        log_event(
+            logger,
+            logging.WARNING,
+            "auth.bearer_verification_failed",
+            status_code=error.status_code,
+            detail=error.detail,
+        )
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error
 
 
@@ -91,7 +102,19 @@ def healthcheck() -> dict[str, str]:
 def contextual_translation(
     payload: ContextualTranslationRequest,
 ) -> ContextualTranslationResponse:
-    return build_contextual_translation(payload.word, payload.sentence)
+    started_at = start_timer()
+    response = build_contextual_translation(payload.word, payload.sentence)
+    log_event(
+        logger,
+        logging.INFO,
+        "translation.built",
+        duration_ms=elapsed_ms(started_at),
+        word_length=len(payload.word.strip()),
+        sentence_length=len(payload.sentence.strip()),
+        suggestion_count=len(response.suggestions),
+        has_dictionary_audio=bool(response.dictionaryAudioUrl),
+    )
+    return response
 
 
 @app.post("/api/study/video-open", response_model=StudyVideoHistoryEntry)
@@ -99,7 +122,16 @@ def study_video_open(
     payload: StudyVideoOpenRequest,
     user_id: str = Depends(get_study_user_id),
 ) -> StudyVideoHistoryEntry:
-    return record_video_open(user_id, payload.videoId, payload.videoTitle)
+    response = record_video_open(user_id, payload.videoId, payload.videoTitle)
+    log_event(
+        logger,
+        logging.INFO,
+        "study.video_open_recorded",
+        user_id=summarize_user_id(user_id),
+        video_id=payload.videoId,
+        opened_count=response.openedCount,
+    )
+    return response
 
 
 @app.get("/api/study/video-history", response_model=StudyVideoHistoryResponse)
@@ -122,7 +154,16 @@ def study_word_activity(
 def study_quota(
     user_id: str = Depends(get_study_user_id),
 ) -> StudyQuotaResponse:
-    return get_study_quota(user_id)
+    response = get_study_quota(user_id)
+    log_event(
+        logger,
+        logging.INFO,
+        "study.quota_loaded",
+        user_id=summarize_user_id(user_id),
+        remaining=response.monthlyFlashcardExportsRemaining,
+        limit=response.monthlyFlashcardLimit,
+    )
+    return response
 
 
 @app.get("/api/study/preferences", response_model=StudyPreferencesResponse)
@@ -137,7 +178,18 @@ def study_preferences_update(
     payload: StudyPreferencesUpdateRequest,
     user_id: str = Depends(get_study_user_id),
 ) -> StudyPreferencesResponse:
-    return update_study_preferences(user_id, payload)
+    response = update_study_preferences(user_id, payload)
+    log_event(
+        logger,
+        logging.INFO,
+        "study.preferences_updated",
+        user_id=summarize_user_id(user_id),
+        has_default_deck=bool(response.defaultDeck),
+        auto_export_to_anki=response.autoExportToAnki,
+        theme=response.theme,
+        show_tone_colors=response.showToneColors,
+    )
+    return response
 
 
 @app.get("/api/study/plan", response_model=StudyPlanResponse)
@@ -161,7 +213,14 @@ def app_account(
 def app_account_purge_data(
     user: AuthenticatedSupabaseUser = Depends(get_authenticated_user),
 ) -> AppUserAccountResponse:
-    return purge_app_user_data(user.id, user.email)
+    response = purge_app_user_data(user.id, user.email)
+    log_event(
+        logger,
+        logging.WARNING,
+        "account.data_purged",
+        user_id=summarize_user_id(user.id),
+    )
+    return response
 
 
 @app.get("/api/study/word-stats", response_model=StudyWordStatsResponse)
@@ -177,7 +236,17 @@ def study_word_click(
     payload: StudyWordInteractionRequest,
     user_id: str = Depends(get_study_user_id),
 ) -> StudyWordStatsResponse:
-    return record_word_click(user_id, payload.videoId, payload.word, payload.sentence)
+    response = record_word_click(user_id, payload.videoId, payload.word, payload.sentence)
+    log_event(
+        logger,
+        logging.INFO,
+        "study.word_click_recorded",
+        user_id=summarize_user_id(user_id),
+        video_id=payload.videoId,
+        word_length=len(payload.word.strip()),
+        click_count=response.clickCount,
+    )
+    return response
 
 
 @app.post("/api/study/anki-exported", response_model=StudyWordStatsResponse)
@@ -185,7 +254,19 @@ def study_anki_exported(
     payload: StudyAnkiExportRequest,
     user_id: str = Depends(get_study_user_id),
 ) -> StudyWordStatsResponse:
-    return record_anki_export(user_id, payload)
+    response = record_anki_export(user_id, payload)
+    log_event(
+        logger,
+        logging.INFO,
+        "study.anki_export_recorded",
+        user_id=summarize_user_id(user_id),
+        video_id=payload.videoId,
+        word_length=len(payload.word.strip()),
+        click_count=response.clickCount,
+        flashcard_count=response.flashcardCount,
+        deck_name=payload.deckName.strip(),
+    )
+    return response
 
 
 @app.get("/api/anki/status", response_model=AnkiStatusResponse)
@@ -198,6 +279,12 @@ def anki_decks() -> AnkiDecksResponse:
     try:
         return get_anki_decks()
     except AnkiConnectError as error:
+        log_event(
+            logger,
+            logging.WARNING,
+            "anki.decks_unavailable",
+            detail=str(error),
+        )
         raise HTTPException(status_code=503, detail=str(error)) from error
 
 
@@ -209,6 +296,24 @@ def anki_self_test() -> AnkiSelfTestResponse:
 @app.post("/api/anki/export-note", response_model=AnkiExportResponse)
 def anki_export_note(payload: AnkiExportRequest) -> AnkiExportResponse:
     try:
-        return export_flashcard_to_anki(payload)
+        response = export_flashcard_to_anki(payload)
+        log_event(
+            logger,
+            logging.INFO,
+            "anki.note_exported",
+            status=response.status,
+            note_id=response.noteId,
+            deck_name=payload.deckName,
+            word_length=len(payload.word.strip()),
+        )
+        return response
     except AnkiConnectError as error:
+        log_event(
+            logger,
+            logging.WARNING,
+            "anki.export_failed",
+            detail=str(error),
+            deck_name=payload.deckName,
+            word_length=len(payload.word.strip()),
+        )
         raise HTTPException(status_code=503, detail=str(error)) from error

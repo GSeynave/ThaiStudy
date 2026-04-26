@@ -1,5 +1,5 @@
 import {
-  getCachedTranscript,
+  getTranscript,
   TranscriptProviderError,
   type TranscriptProviderName,
   type TranscriptSegment,
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const transcript = await getCachedTranscript(videoId);
+    const transcript = await getTranscript(videoId);
     const payload: TranscriptRouteResponse = transcript;
     return Response.json(payload);
   } catch (error) {

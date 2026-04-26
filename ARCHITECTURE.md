@@ -29,6 +29,7 @@ Anki stays local:
 - load a YouTube video and transcript
 - use TranscriptAPI as the current hosted transcript source, while keeping transcript rendering/source handling inside the frontend route layer
 - cache successful transcript provider fetches through the frontend server layer to reduce repeat provider spend
+- short-term transcript misses currently use an in-process negative cache so repeated "no transcript" lookups do not keep hitting the provider during the same server lifetime
 - render the study workspace
 - handle word clicks and phrase selection
 - show translation, pronunciation, and tone-teaching UI
@@ -192,6 +193,11 @@ Current frontend observability groundwork:
 - transcript provider fetches and provider failures log through `frontend/lib/ops/server-log.ts`
 - backend proxy transport failures log through the same surface
 - auth sign-in, sign-up, Google OAuth start, and callback exchange failures now emit structured server-side events
+
+Current backend observability groundwork:
+
+- `backend/app/logging_utils.py` provides structured API-boundary logging
+- translation build, study activity writes, auth verification failures, and Anki export failures now emit maintenance-oriented log events
 
 ## Important constraints
 
