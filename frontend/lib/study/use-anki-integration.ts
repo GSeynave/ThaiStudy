@@ -55,101 +55,105 @@ export function useAnkiIntegration({
     text: string | null;
   }>({ kind: "idle", text: null });
 
-  const refreshAnkiState = useCallback(async () => {
-    setAnkiStatusState("checking");
-    setAnkiStatusDetail("Checking AnkiConnect and available decks.");
-
-    try {
-      const [statusPayload, selfTestPayload] = await Promise.all([
-        getAnkiStatus(),
-        getAnkiSelfTest(),
-      ]);
-      let decksPayload: AnkiDecksResponse | null = null;
+  const refreshAnkiState = useCallback(
+    async (options?: { suppressToast?: boolean }) => {
+      setAnkiStatusState("checking");
+      setAnkiStatusDetail("Checking AnkiConnect and available decks.");
 
       try {
-        decksPayload = await getAnkiDecks();
-      } catch {}
+        const [statusPayload, selfTestPayload] = await Promise.all([
+          getAnkiStatus(),
+          getAnkiSelfTest(),
+        ]);
+        let decksPayload: AnkiDecksResponse | null = null;
 
-      setAnkiAvailable(
-        Boolean(
+        try {
+          decksPayload = await getAnkiDecks();
+        } catch {}
+
+        const isReady = Boolean(
           statusPayload.available &&
             selfTestPayload.available &&
             selfTestPayload.modelReady &&
             selfTestPayload.canListDecks,
-        ),
-      );
-      setAnkiModelName(statusPayload.modelName ?? "ThaiStudyBasic");
-
-      if (decksPayload) {
-        setAnkiDecks(decksPayload.decks);
-        setSelectedDeck((currentDeck) =>
-          [currentDeck, getStoredAnkiDeck()].find(
-            (deckName) => deckName && decksPayload.decks.includes(deckName),
-          ) ?? (decksPayload.decks[0] ?? ""),
         );
-        if (
-          statusPayload.available &&
-          selfTestPayload.available &&
-          selfTestPayload.modelReady &&
-          selfTestPayload.canListDecks
-        ) {
-          setAnkiStatusState("connected");
-          setAnkiStatusDetail(
-            decksPayload.decks.length > 0
-              ? `${decksPayload.decks.length} deck${decksPayload.decks.length === 1 ? "" : "s"} available in ${statusPayload.modelName ?? "ThaiStudyBasic"}.`
-              : "Connected to Anki, but no decks were returned.",
-          );
-        }
-      } else {
-        setAnkiDecks([]);
-        if (
-          statusPayload.available &&
-          selfTestPayload.available &&
-          selfTestPayload.modelReady
-        ) {
-          setAnkiStatusState("issue");
-          setAnkiStatusDetail("Anki is reachable, but the app could not list decks.");
-        }
-      }
 
-      if (
-        !statusPayload.available ||
-        !selfTestPayload.available ||
-        !selfTestPayload.modelReady
-      ) {
-        const message =
-          selfTestPayload.error ??
-          statusPayload.error ??
-          "AnkiConnect is not available or the export model is not ready.";
+        setAnkiAvailable(isReady);
+        setAnkiModelName(statusPayload.modelName ?? "ThaiStudyBasic");
+
+        if (decksPayload) {
+          setAnkiDecks(decksPayload.decks);
+          setSelectedDeck((currentDeck) =>
+            [currentDeck, getStoredAnkiDeck()].find(
+              (deckName) => deckName && decksPayload.decks.includes(deckName),
+            ) ?? (decksPayload.decks[0] ?? ""),
+          );
+          if (isReady) {
+            setAnkiStatusState("connected");
+            setAnkiStatusDetail(
+              decksPayload.decks.length > 0
+                ? `${decksPayload.decks.length} deck${decksPayload.decks.length === 1 ? "" : "s"} available in ${statusPayload.modelName ?? "ThaiStudyBasic"}.`
+                : "Connected to Anki, but no decks were returned.",
+            );
+          }
+        } else {
+          setAnkiDecks([]);
+          if (
+            statusPayload.available &&
+            selfTestPayload.available &&
+            selfTestPayload.modelReady
+          ) {
+            setAnkiStatusState("issue");
+            setAnkiStatusDetail("Anki is reachable, but the app could not list decks.");
+          }
+        }
+
+        if (!isReady) {
+          const message =
+            selfTestPayload.error ??
+            statusPayload.error ??
+            "AnkiConnect is not available or the export model is not ready.";
+          setAnkiStatusState("issue");
+          setAnkiStatusDetail(message);
+          setAnkiExportMessage({
+            kind: "error",
+            text: message,
+          });
+          if (!options?.suppressToast) {
+            pushToast("error", "Anki connection issue", message, "Anki");
+          }
+          return {
+            available: false as const,
+            message,
+          };
+        }
+
+        setAnkiExportMessage({ kind: "idle", text: null });
+        return {
+          available: true as const,
+        };
+      } catch {
+        const message = "Could not reach the Anki export service.";
+        setAnkiAvailable(false);
+        setAnkiDecks([]);
+        setAnkiModelName("ThaiStudyBasic");
         setAnkiStatusState("issue");
         setAnkiStatusDetail(message);
         setAnkiExportMessage({
           kind: "error",
           text: message,
         });
-        pushToast("error", "Anki connection issue", message, "Anki");
-        return;
+        if (!options?.suppressToast) {
+          pushToast("error", "Anki connection failed", message, "Anki");
+        }
+        return {
+          available: false as const,
+          message,
+        };
       }
-
-      setAnkiExportMessage({ kind: "idle", text: null });
-    } catch {
-      setAnkiAvailable(false);
-      setAnkiDecks([]);
-      setAnkiModelName("ThaiStudyBasic");
-      setAnkiStatusState("issue");
-      setAnkiStatusDetail("Could not reach the Anki export service.");
-      setAnkiExportMessage({
-        kind: "error",
-        text: "Could not reach the Anki export service.",
-      });
-      pushToast(
-        "error",
-        "Anki connection failed",
-        "Could not reach the Anki export service.",
-        "Anki",
-      );
-    }
-  }, [pushToast, setSelectedDeck]);
+    },
+    [pushToast, setSelectedDeck],
+  );
 
   useEffect(() => {
     if (!isSidebarExpanded) {
@@ -175,6 +179,11 @@ export function useAnkiIntegration({
       setIsExportingToAnki(true);
 
       try {
+        const connectionState = await refreshAnkiState({ suppressToast: true });
+        if (!connectionState.available) {
+          throw new Error(connectionState.message);
+        }
+
         const quotaResponse = await fetch("/api/study/quota", {
           cache: "no-store",
         });
@@ -257,7 +266,7 @@ export function useAnkiIntegration({
         setIsExportingToAnki(false);
       }
     },
-    [pushToast, recordAnkiExported, selectedDeck, setStudyQuota],
+    [pushToast, recordAnkiExported, refreshAnkiState, selectedDeck, setStudyQuota],
   );
 
   return {

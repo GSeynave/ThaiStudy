@@ -644,12 +644,12 @@ export function Sidebar({
       </div>
 
       <div
-        className={`pointer-events-none absolute left-[5.5rem] top-0 h-full w-[20.5rem] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`pointer-events-none fixed bottom-4 left-[6.5rem] top-4 w-[20.5rem] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:left-[7rem] lg:left-[7.5rem] ${
           isExpanded ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
         }`}
       >
         <div
-          className={`flex h-full flex-col rounded-[1.4rem] border border-[color:var(--surface-border)] bg-[color:var(--surface-1)]/96 px-4 py-4 shadow-[0_24px_60px_-40px_rgba(34,27,18,0.32)] backdrop-blur ${
+          className={`flex h-full min-h-0 flex-col overflow-y-auto rounded-[1.4rem] border border-[color:var(--surface-border)] bg-[color:var(--surface-1)]/96 px-4 py-4 shadow-[0_24px_60px_-40px_rgba(34,27,18,0.32)] backdrop-blur ${
             isExpanded ? "pointer-events-auto" : "pointer-events-none"
           }`}
         >
@@ -695,7 +695,7 @@ export function Sidebar({
           </div>
 
           {activeSection === "settings" ? (
-            <div className="mt-5 flex min-h-0 flex-1 flex-col gap-3">
+            <div className="mt-5 flex min-h-0 flex-1 flex-col gap-3 pb-1">
               <div className="rounded-xl border border-[color:var(--surface-border)] bg-[color:var(--surface-elevated)] px-3 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -915,7 +915,7 @@ export function Sidebar({
                 </p>
               </div>
 
-              <div className="mt-3 space-y-2 overflow-y-auto pr-1">
+              <div className="mt-3 max-h-full space-y-2 overflow-y-auto pr-1">
                 {isLoadingHistory ? (
                   <>
                     <SkeletonBlock className="h-16 w-full" />
