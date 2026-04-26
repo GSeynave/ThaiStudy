@@ -62,7 +62,10 @@ Set the frontend environment in `frontend/.env.local`:
 BACKEND_API_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
+TRANSCRIPT_API_KEY=your-transcriptapi-key
 ```
+
+`TRANSCRIPT_API_KEY` is server-only and is used by the frontend transcript route handler. Do not expose it via `NEXT_PUBLIC_*`.
 
 For Supabase auth to work locally, add these redirect URLs in the Supabase dashboard:
 

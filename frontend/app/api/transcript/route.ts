@@ -12,6 +12,7 @@ import {
 import type { FetchParams } from "youtube-transcript-plus";
 
 const DEFAULT_LANGUAGE = "th";
+const TRANSCRIPT_API_BASE_URL = "https://transcriptapi.com/api/v2";
 
 type TranscriptRouteResponse = {
   segments: TranscriptSegment[];
@@ -62,6 +63,21 @@ type PlayerClientConfig = {
   name: string;
   clientName: string;
   clientVersion: string;
+};
+
+type TranscriptApiResponse = {
+  language?: string;
+  transcript?: Array<{
+    text?: string;
+    start?: number;
+    duration?: number;
+  }>;
+};
+
+type TranscriptApiSegment = {
+  text: string;
+  start: number;
+  duration: number;
 };
 
 const YOUTUBE_FETCH_TIMEOUT_MS = 12000;
@@ -132,6 +148,69 @@ function normalizeTranscriptSegments(segments: TranscriptSegment[]) {
     ...segment,
     text: normalizeTranscriptText(segment.text),
   }));
+}
+
+function getTranscriptApiKey() {
+  return process.env.TRANSCRIPT_API_KEY?.trim() || null;
+}
+
+async function fetchTranscriptFromProvider(videoId: string) {
+  const apiKey = getTranscriptApiKey();
+  if (!apiKey) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${TRANSCRIPT_API_BASE_URL}/youtube/transcript?video_url=${encodeURIComponent(videoId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(YOUTUBE_FETCH_TIMEOUT_MS),
+    },
+  );
+
+  if (response.status === 404) {
+    throw new Error("No transcript is available for this video.");
+  }
+
+  if (response.status === 401) {
+    throw new Error("Transcript provider rejected the API key.");
+  }
+
+  if (response.status === 402) {
+    throw new Error("Transcript provider account has no available credits.");
+  }
+
+  if (response.status === 429) {
+    throw new Error("Transcript provider rate-limited the request. Try again later.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Transcript provider returned HTTP ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as TranscriptApiResponse;
+  if (!Array.isArray(payload.transcript) || payload.transcript.length === 0) {
+    throw new Error("Transcript provider returned no transcript segments.");
+  }
+
+  return payload.transcript
+    .filter(
+      (segment): segment is TranscriptApiSegment =>
+        typeof segment.text === "string" &&
+        typeof segment.start === "number" &&
+        typeof segment.duration === "number",
+    )
+    .map(
+      (segment): TranscriptSegment => ({
+        text: segment.text,
+        offset: segment.start,
+        duration: segment.duration,
+        lang: payload.language ?? DEFAULT_LANGUAGE,
+      }),
+    );
 }
 
 async function youtubeFetch({ url, method = "GET", body, headers = {}, signal }: FetchParams) {
@@ -508,6 +587,14 @@ export async function GET(request: Request) {
   }
 
   try {
+    const providerSegments = await fetchTranscriptFromProvider(videoId);
+    if (providerSegments) {
+      const payload: TranscriptRouteResponse = {
+        segments: normalizeTranscriptSegments(providerSegments),
+      };
+      return Response.json(payload);
+    }
+
     const segments = normalizeTranscriptSegments(
       await fetchTranscript(videoId, {
         lang,

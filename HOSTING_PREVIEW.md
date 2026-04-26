@@ -48,6 +48,7 @@ Set environment variables:
 - `BACKEND_API_BASE_URL=https://<your-backend-domain>`
 - `NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your-supabase-publishable-key>`
+- `TRANSCRIPT_API_KEY=<your-transcriptapi-key>`
 
 After deployment, note the exact frontend origin you want to keep stable.
 

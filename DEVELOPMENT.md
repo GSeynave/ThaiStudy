@@ -67,6 +67,13 @@ Supabase auth setup:
   - Supabase Auth URL configuration
   - frontend `/auth/callback` route behavior
 
+Transcript provider setup:
+
+- set `TRANSCRIPT_API_KEY` in `frontend/.env.local` for local testing
+- set the same key in Vercel project env vars for hosted testing
+- when `TRANSCRIPT_API_KEY` is present, `frontend/app/api/transcript/route.ts` uses TranscriptAPI first
+- when it is absent, the route falls back to the current YouTube extraction code path
+
 ## Current design principles
 
 - The app is transcript-first.
