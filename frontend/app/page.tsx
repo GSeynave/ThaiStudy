@@ -22,6 +22,7 @@ import {
   getAnkiStatus,
   type AnkiDecksResponse,
 } from "@/lib/anki/local-bridge";
+import { ToastViewport, type AppToast } from "@/components/toast";
 
 type TranscriptSegment = {
   text: string;
@@ -61,7 +62,7 @@ type TranslationErrorResponse = {
   error: string;
 };
 
-type AnkiConnectionState = "checking" | "connected" | "issue";
+type AnkiConnectionState = "idle" | "checking" | "connected" | "issue";
 
 type StudyVideoHistoryEntry = {
   videoId: string;
@@ -1610,14 +1611,18 @@ function Sidebar({
                         ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
                         : ankiStatusState === "checking"
                           ? "bg-[color:var(--accent-soft)] text-[color:var(--accent-text)]"
-                          : "bg-[color:var(--danger-bg)] text-[color:var(--danger-text)]"
+                          : ankiStatusState === "idle"
+                            ? "bg-[color:var(--surface-3)] text-[color:var(--text-soft)]"
+                            : "bg-[color:var(--danger-bg)] text-[color:var(--danger-text)]"
                     }`}
                   >
                     {ankiStatusState === "connected"
                       ? "Connected"
                       : ankiStatusState === "checking"
                         ? "Checking"
-                        : "Issue"}
+                        : ankiStatusState === "idle"
+                          ? "Idle"
+                          : "Issue"}
                   </span>
                 </div>
 
@@ -1679,7 +1684,7 @@ function Sidebar({
                     className="inline-flex rounded-md border border-[color:var(--surface-border)] bg-[color:var(--input-bg)] px-2.5 py-1.5 text-xs font-medium text-[color:var(--text-main)] transition hover:bg-[color:var(--surface-1)]"
                     onClick={onRefreshAnki}
                   >
-                    Refresh connection
+                    {ankiStatusState === "issue" ? "↻ Retry connection" : "Refresh connection"}
                   </button>
                 </div>
               </div>
@@ -2538,9 +2543,9 @@ export default function Home() {
   const [ankiDecks, setAnkiDecks] = useState<string[]>([]);
   const [ankiModelName, setAnkiModelName] = useState("ThaiStudyBasic");
   const [ankiStatusState, setAnkiStatusState] =
-    useState<AnkiConnectionState>("checking");
+    useState<AnkiConnectionState>("idle");
   const [ankiStatusDetail, setAnkiStatusDetail] = useState(
-    "Checking AnkiConnect and available decks.",
+    "Open the sidebar to check your local Anki connection.",
   );
   const [videoHistory, setVideoHistory] = useState<StudyVideoHistoryEntry[]>([]);
   const [studyQuota, setStudyQuota] = useState<StudyQuotaResponse | null>(null);
@@ -2581,6 +2586,7 @@ export default function Home() {
   const [transcript, setTranscript] = useState<TranscriptState>(EMPTY_TRANSCRIPT);
   const [translation, setTranslation] =
     useState<TranslationState>(EMPTY_TRANSLATION);
+  const [toasts, setToasts] = useState<AppToast[]>([]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YouTubePlayer | null>(null);
@@ -2593,6 +2599,7 @@ export default function Home() {
   const activeSegmentIndexRef = useRef<number | null>(null);
   const wordStatsRequestIdRef = useRef(0);
   const lastSavedPreferenceSignatureRef = useRef<string | null>(null);
+  const toastIdRef = useRef(0);
   const isHydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -2607,6 +2614,40 @@ export default function Home() {
         : sessionState.mode === "supabase"
           ? "Saved study data needs a signed-in Supabase user."
           : "Saved study data is unavailable until Supabase is configured.";
+
+  const dismissToast = useCallback((toastId: number) => {
+    setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== toastId));
+  }, []);
+
+  const pushToast = useCallback(
+    (
+      kind: AppToast["kind"],
+      title: string,
+      message: string,
+      source?: string | null,
+      durationMs?: number,
+    ) => {
+      const id = toastIdRef.current + 1;
+      toastIdRef.current = id;
+      setToasts((currentToasts) => [
+        ...currentToasts,
+        {
+          id,
+          kind,
+          title,
+          message,
+          source: source ?? null,
+        },
+      ]);
+
+      const timeoutMs =
+        durationMs ?? (kind === "error" ? 9000 : kind === "success" ? 5000 : 6000);
+      window.setTimeout(() => {
+        dismissToast(id);
+      }, timeoutMs);
+    },
+    [dismissToast],
+  );
 
   const fetchHostedStudyPreferences = useCallback(async () => {
     if (!canUseSavedStudyData) {
@@ -2967,6 +3008,7 @@ export default function Home() {
         segments: [],
         error: message,
       });
+      pushToast("error", "Transcript unavailable", message, "Transcript");
       setTranscriptPage(0);
     }
   }
@@ -3036,6 +3078,7 @@ export default function Home() {
         data: null,
         error: message,
       });
+      pushToast("error", "Translation failed", message, "Translation");
     }
   }
 
@@ -3268,19 +3311,17 @@ export default function Home() {
         !selfTestPayload.available ||
         !selfTestPayload.modelReady
       ) {
-        setAnkiStatusState("issue");
-        setAnkiStatusDetail(
+        const message =
           selfTestPayload.error ??
-            statusPayload.error ??
-            "AnkiConnect is not available or the export model is not ready.",
-        );
+          statusPayload.error ??
+          "AnkiConnect is not available or the export model is not ready.";
+        setAnkiStatusState("issue");
+        setAnkiStatusDetail(message);
         setAnkiExportMessage({
           kind: "error",
-          text:
-            selfTestPayload.error ??
-            statusPayload.error ??
-            "AnkiConnect is not available.",
+          text: message,
         });
+        pushToast("error", "Anki connection issue", message, "Anki");
         return;
       }
 
@@ -3295,34 +3336,26 @@ export default function Home() {
         kind: "error",
         text: "Could not reach the Anki export service.",
       });
+      pushToast(
+        "error",
+        "Anki connection failed",
+        "Could not reach the Anki export service.",
+        "Anki",
+      );
     }
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void refreshAnkiState();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [refreshAnkiState]);
+  }, [pushToast]);
 
   useEffect(() => {
     if (!isSidebarExpanded) {
       return;
     }
 
-    const initialTimeoutId = window.setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       void refreshAnkiState();
     }, 0);
-    const intervalId = window.setInterval(() => {
-      void refreshAnkiState();
-    }, 5000);
 
     return () => {
-      window.clearTimeout(initialTimeoutId);
-      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
     };
   }, [isSidebarExpanded, refreshAnkiState]);
 
@@ -3625,6 +3658,14 @@ export default function Home() {
                 : "."
             }${payload.warning ? ` ${payload.warning}` : ""}`,
       });
+      pushToast(
+        payload.duplicate ? "info" : "success",
+        payload.duplicate ? "Card already exported" : "Card exported",
+        payload.duplicate
+          ? `Anki already has this card as note ${payload.noteId}.`
+          : `Exported to ${payload.modelName} as note ${payload.noteId}.`,
+        "Anki",
+      );
       if (flashcard.videoId) {
         await recordAnkiExported(
           flashcard.videoId,
@@ -3637,13 +3678,18 @@ export default function Home() {
       }
     } catch (error) {
       setGeneratedFlashcard(flashcard);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not export the note to Anki.";
       setAnkiExportMessage({
         kind: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Could not export the note to Anki.",
+        text: message,
       });
+      setAnkiAvailable(false);
+      setAnkiStatusState("issue");
+      setAnkiStatusDetail(message);
+      pushToast("error", "Export failed", message, "Anki");
     } finally {
       setIsExportingToAnki(false);
     }
@@ -3669,7 +3715,6 @@ export default function Home() {
 
     const nextFlashcard = buildGeneratedFlashcard(translation, preferredTranslation);
     setAnkiExportMessage({ kind: "idle", text: null });
-    void refreshAnkiState();
 
     if (autoExportToAnki && ankiAvailable && selectedDeck) {
       void exportFlashcardToAnki(nextFlashcard);
@@ -3866,6 +3911,7 @@ export default function Home() {
         strategy="afterInteractive"
         onReady={handleYouTubeApiReady}
       />
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
 
       <main className="relative isolate h-screen overflow-hidden">
         <div

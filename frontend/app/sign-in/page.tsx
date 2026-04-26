@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+
+import { ToastViewport, type AppToast } from "@/components/toast";
 
 export default function SignInPage() {
   return (
@@ -23,12 +25,39 @@ function SignInPageContent() {
     kind: "idle",
     text: null,
   });
+  const [toasts, setToasts] = useState<AppToast[]>([]);
+  const toastIdRef = useRef(0);
 
   const callbackError = searchParams.get("error");
   const isSupabaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   );
+
+  const dismissToast = useCallback((toastId: number) => {
+    setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== toastId));
+  }, []);
+
+  const pushToast = useCallback(
+    (kind: AppToast["kind"], title: string, text: string, source?: string | null) => {
+      const id = toastIdRef.current + 1;
+      toastIdRef.current = id;
+      setToasts((currentToasts) => [
+        ...currentToasts,
+        { id, kind, title, message: text, source: source ?? null },
+      ]);
+      window.setTimeout(() => dismissToast(id), kind === "error" ? 9000 : 6000);
+    },
+    [dismissToast],
+  );
+
+  useEffect(() => {
+    if (!callbackError) {
+      return;
+    }
+
+    pushToast("error", "Sign-in failed", callbackError, "Authentication");
+  }, [callbackError, pushToast]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,6 +67,12 @@ function SignInPageContent() {
         kind: "error",
         text: "Enter the email address you want to use for sign-in.",
       });
+      pushToast(
+        "error",
+        "Email required",
+        "Enter the email address you want to use for sign-in.",
+        "Authentication",
+      );
       return;
     }
 
@@ -57,29 +92,41 @@ function SignInPageContent() {
         | null;
 
       if (!response.ok) {
+        const text = payload?.error ?? "Could not start sign-in.";
         setMessage({
           kind: "error",
-          text: payload?.error ?? "Could not start sign-in.",
+          text,
         });
+        pushToast("error", "Sign-in failed", text, "Authentication");
         return;
       }
 
+      const text = payload?.message ?? "Check your email for the sign-in link.";
       setMessage({
         kind: "success",
-        text: payload?.message ?? "Check your email for the sign-in link.",
+        text,
       });
+      pushToast("success", "Magic link sent", text, "Authentication");
     } catch {
       setMessage({
         kind: "error",
         text: "Could not start sign-in.",
       });
+      pushToast(
+        "error",
+        "Sign-in failed",
+        "Could not start sign-in.",
+        "Authentication",
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
+    <>
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
+      <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center">
         <section className="grid w-full gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[1.75rem] border border-[color:var(--surface-border)] bg-[color:var(--surface-1)]/94 px-6 py-7 shadow-[0_24px_60px_-40px_rgba(34,27,18,0.28)] backdrop-blur sm:px-8 sm:py-8">
@@ -174,7 +221,8 @@ function SignInPageContent() {
           </aside>
         </section>
       </div>
-    </main>
+      </main>
+    </>
   );
 }
 

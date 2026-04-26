@@ -29,6 +29,14 @@ cd backend
 python3 -m unittest tests/test_contextual_translation.py tests/test_anki_connect.py tests/test_study_history.py
 ```
 
+Commit policy:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+This installs a local `commit-msg` hook that enforces the repo's Conventional Commit policy from [RELEASING.md](/home/gauthier/projects/thai-study/RELEASING.md).
+
 Backend runtime env:
 
 - keep `DATABASE_URL` in `backend/.env.local` for local Postgres-backed development

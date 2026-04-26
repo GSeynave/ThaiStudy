@@ -125,3 +125,4 @@ Production architecture is intentionally different from the current local-develo
 - [DATA_RETENTION.md](DATA_RETENTION.md): current account/data purge behavior and retention notes
 - [HOSTING_PREVIEW.md](HOSTING_PREVIEW.md): first hosted preview shape and validation plan
 - [DIRECT_ANKI_VALIDATION.md](DIRECT_ANKI_VALIDATION.md): direct-browser AnkiConnect test checklist
+- [RELEASING.md](RELEASING.md): pre-v1 versioning and Conventional Commit policy
