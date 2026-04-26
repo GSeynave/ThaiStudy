@@ -26,7 +26,7 @@ Backend:
 
 ```bash
 cd backend
-python3 -m unittest tests/test_contextual_translation.py tests/test_anki_connect.py tests/test_study_history.py
+python3 -m unittest tests/test_contextual_translation.py tests/test_anki_connect.py tests/test_study_history.py tests/test_supabase_auth.py
 ```
 
 Commit policy:
@@ -85,6 +85,7 @@ Operational logging:
   - backend proxy failures
   - auth callback / sign-in / sign-up failures
 - backend API routes now emit structured maintenance logs through `backend/app/logging_utils.py`
+- local Anki export now re-checks connection state again at export time instead of depending only on the last sidebar probe
 - do not log raw tokens, cookies, or full user payloads
 
 ## Current design principles

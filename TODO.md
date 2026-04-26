@@ -36,9 +36,11 @@
 - Auto-export now exists and can skip the review dialog when Anki is connected and a deck is selected; failures fall back to the review dialog.
 - The flashcard dialog is much clearer now, but the final wording and small presentation details can still be tightened.
 - The sidebar is now a real settings drawer with a separate history section, persisted theme/tone preferences, and a clearer Anki connection block.
+- Export now re-checks local Anki availability at export time instead of trusting only the last sidebar refresh.
 - The focus view is cleaner now: source context stays visible, alternative meanings are selectable, and only the lightweight `Last checked` retention cue remains.
 - Transcript tokenization and tone analysis are better now, but they still need a broader set of hard-word regression tests before that area is truly finished.
 - Tone styling is now mostly text-led, but a few focus areas still use stronger containers deliberately.
+- Structured operational logs now exist at the frontend route boundary and backend API boundary; metrics, alerting, and dashboards are still missing.
 
 ## Prod ready
 
@@ -99,7 +101,18 @@
 
 ### Reliability, performance, and monitoring
 
-- [ ] Add structured logging for frontend route handlers and backend API requests.
+- [~] Add structured logging for frontend route handlers and backend API requests.
+- [ ] Add product metrics for the main study funnel:
+  - video opened
+  - transcript loaded / transcript unavailable
+  - translation requested
+  - flashcard generated
+  - Anki export attempted / succeeded / failed
+- [ ] Define the observability surface:
+  - logs
+  - metrics
+  - alerts
+  - dashboard views for hosted maintenance
 - [ ] Add error monitoring and alerting.
 - [ ] Add health checks that reflect dependencies, not just process up/down.
 - [~] Add regression tests for translation, tone analysis, Anki export, and study-history isolation.
@@ -137,4 +150,5 @@
 - [ ] Keep billing and Stripe work paused until legal documents and policy decisions are ready.
 - [ ] Add an account settings surface for account metadata and app-data purge.
 - [ ] Move production-sensitive config fully into env-driven settings.
+- [ ] Add first-pass hosted observability: core study/export metrics, alertable failures, and one dashboard for maintenance.
 - [ ] Validate the production Anki bridge approach from the browser side before going deeper on paid-plan work.
